@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+DATA/
+*.har
+*.session.json
+session.json
+.browser-profile/
+profiles/
+node_modules/
+.DS_Store

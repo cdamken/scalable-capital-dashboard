@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scalable Capital — Portfolio</title>
+<!--
+  ⚠️  UI STRINGS MUST BE ENGLISH. No Spanish.
+  Carlos called this out twice. See ../CLAUDE.md "HARD RULES" + user
+  memory feedback_sc_ui_english.md. Spanish is ONLY for GBM.
+-->
+
+<style>
+  :root {
+    --bg: #0f1419;
+    --card: #1a1f2e;
+    --border: #2a3142;
+    --text: #e8eef5;
+    --muted: #7a8599;
+    --green: #4ade80;
+    --red: #f87171;
+    --amber: #fbbf24;
+    /* Scalable brand-adjacent: dark teal/green accent */
+    --blue: #00b8a9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    background: var(--bg); color: var(--text);
+    margin: 0; padding: 24px;
+    font-variant-numeric: tabular-nums;
+  }
+  .top-bar {
+    position: sticky; top: 0; z-index: 60;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    margin: -24px -24px 24px;
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-weight: 700; letter-spacing: 0.2px;
+  }
+  .logo-box {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: linear-gradient(135deg, #00373d, #00b8a9);
+    display: inline-block;
+  }
+  .top-bar nav { flex: 1; display: flex; gap: 6px; justify-content: center; }
+  .top-bar .tab {
+    color: var(--muted); padding: 6px 12px; border-radius: 6px;
+    text-decoration: none; font-size: 13px; font-weight: 600;
+    border: 1px solid transparent;
+  }
+  .top-bar .tab.active {
+    color: var(--blue);
+    background: rgba(0, 184, 169, 0.08);
+    border-color: var(--blue);
+  }
+  .top-bar .actions { display: flex; gap: 8px; align-items: center; }
+  .btn {
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); padding: 8px 14px;
+    border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+  .btn:hover { border-color: var(--blue); }
+  .btn-primary { background: var(--blue); color: #06292c; border-color: var(--blue); }
+  .staleness {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; background: rgba(122, 133, 153, 0.18);
+    color: var(--muted);
+  }
+  .staleness.fresh { background: rgba(74, 222, 128, 0.18); color: var(--green); }
+  .staleness.warn  { background: rgba(251, 191, 36, 0.18); color: var(--amber); }
+  .staleness.stale { background: rgba(248, 113, 113, 0.18); color: var(--red); }
+
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+  }
+  .card .label {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+  }
+  .card .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+          border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--border);
+           font-size: 13px; }
+  th:first-child, td:first-child { text-align: left; }
+  th { background: rgba(122, 133, 153, 0.08); font-weight: 600; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; }
+  tr:last-child td { border-bottom: none; }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+
+  .empty-state {
+    text-align: center; padding: 48px; color: var(--muted);
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .empty-state code {
+    background: rgba(0, 184, 169, 0.10); padding: 2px 6px; border-radius: 4px;
+    color: var(--blue); font-family: ui-monospace, Menlo, monospace;
+  }
+
+  #toast {
+    position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+    background: var(--card); border: 1px solid var(--border);
+    border-top: 3px solid var(--blue);
+    padding: 14px 22px; border-radius: 0 0 10px 10px;
+    display: none; z-index: 90; min-width: 320px;
+  }
+  #toast.active { display: block; }
+  #toast.ok  { border-top-color: var(--green); }
+  #toast.err { border-top-color: var(--red); }
+
+  /* Holdings controls + sortable headers + modal */
+  .controls {
+    display: flex; gap: 12px; margin: 16px 0; align-items: center;
+    flex-wrap: wrap;
+  }
+  .controls input {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 12px; border-radius: 6px; font-size: 13px; width: 280px;
+  }
+  .controls input:focus { outline: none; border-color: var(--blue); }
+  .controls .count { color: var(--muted); font-size: 12px; margin-left: auto; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--text); }
+  th.sortable.sort-asc::after  { content: " ▲"; color: var(--blue); }
+  th.sortable.sort-desc::after { content: " ▼"; color: var(--blue); }
+  #holdings-table tbody tr { cursor: pointer; }
+  #holdings-table tbody tr:hover { background: rgba(0,184,169,0.04); }
+
+  .warning {
+    background: rgba(251,191,36,0.10); border: 1px solid var(--amber);
+    color: var(--amber); padding: 10px 14px; border-radius: 8px;
+    font-size: 13px; margin: 8px 0;
+  }
+  .warning.red { background: rgba(248,113,113,0.10);
+                 border-color: var(--red); color: var(--red); }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(15,20,25,0.92);
+    z-index: 100; display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .modal-backdrop.active { display: flex; }
+  .modal {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px; max-width: 560px; width: 100%;
+    max-height: 80vh; overflow-y: auto;
+  }
+  .modal h3 { margin: 0 0 6px; font-size: 18px; }
+  .modal .modal-sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  .modal dl { display: grid; grid-template-columns: 180px 1fr; gap: 8px 14px; }
+  .modal dt { color: var(--muted); font-size: 12px; text-transform: uppercase;
+              letter-spacing: 0.5px; font-weight: 600; align-self: center; }
+  .modal dd { margin: 0; font-size: 14px; }
+  .modal .modal-close {
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+    float: right;
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand"><span class="logo-box"></span> Scalable Capital</div>
+  <nav>
+    <a class="tab active" href="/app/index.html">Portfolio</a>
+    <a class="tab" href="/app/analytics.html">Analytics</a>
+    <a class="tab" href="/app/orders.html">📋 Orders</a>
+    <a class="tab" href="/app/dividends.html">💰 Dividends</a>
+    <a class="tab" href="/app/ledger.html">📒 Ledger</a>
+    <a class="tab" href="/app/wealth.html">🏦 Wealth</a>
+    <a class="tab" href="/app/glossary.html">📖 Glossary</a>
+    <a class="tab" href="/app/settings.html">⚙ Settings</a>
+  </nav>
+  <div class="actions">
+    <span id="staleness" class="staleness">never updated</span>
+    <button id="update-btn" class="btn btn-primary">⟳ Update Now</button>
+  </div>
+</div>
+
+<div id="setup-state" style="display: none;">
+  <div class="empty-state">
+    <h2>👋 No account configured</h2>
+    <p style="margin: 10px 0 20px;">Register your Scalable account before fetching data.</p>
+    <a href="/app/settings.html" class="btn btn-primary" style="text-decoration: none; display: inline-block; padding: 12px 24px;">
+      Go to Settings →
+    </a>
+    <p style="margin-top: 20px; font-size: 12px; color: var(--muted);">
+      You'll enter email + password, approve the push once, and the dashboard loads.
+    </p>
+  </div>
+</div>
+
+<div id="dashboard-state" style="display: none;">
+  <div class="grid">
+    <div class="card"><div class="label">Total (Broker + Wealth)</div><div class="value" id="kpi-total">—</div></div>
+    <div class="card"><div class="label">Broker · Cash</div><div class="value" id="kpi-cash">—</div></div>
+    <div class="card"><div class="label">Broker · Securities</div><div class="value" id="kpi-securities">—</div></div>
+    <div class="card"><div class="label">Wealth · Total</div><div class="value" id="kpi-wealth">—</div></div>
+  </div>
+
+  <h2 style="margin-top: 32px; font-size: 18px;">Wealth (Roboadvisor)</h2>
+  <table id="wealth-table">
+    <thead><tr>
+      <th>Name</th><th>Type</th><th>Risk</th>
+      <th>Funded</th><th>Status</th><th>Valuation</th>
+    </tr></thead>
+    <tbody><tr><td colspan="6" style="text-align:center; color: var(--muted);">
+      No wealth portfolios yet.
+    </td></tr></tbody>
+  </table>
+
+  <h2 style="margin-top: 32px; font-size: 18px;">Broker · Holdings
+    <span style="color: var(--muted); font-size: 12px; font-weight: 400;" id="broker-pending-label"></span>
+  </h2>
+
+  <div id="concentration-warnings"></div>
+
+  <div class="controls">
+    <input id="holdings-search" type="search" placeholder="Search by name or ISIN…">
+    <span class="count" id="holdings-count"></span>
+    <a class="btn" href="/export/holdings.csv" download>↓ Export CSV</a>
+  </div>
+
+  <table id="holdings-table">
+    <thead><tr>
+      <th class="sortable" data-sort="name">Name</th>
+      <th class="sortable" data-sort="isin">ISIN</th>
+      <th class="sortable" data-sort="qty">Position</th>
+      <th class="sortable" data-sort="price">Price</th>
+      <th class="sortable sort-desc" data-sort="value">Value</th>
+      <th class="sortable" data-sort="pnl">P&amp;L %</th>
+    </tr></thead>
+    <tbody><tr><td colspan="6" style="text-align:center; color: var(--muted);">
+      Click <em>Update Now</em> to fetch your portfolio.
+    </td></tr></tbody>
+  </table>
+</div>
+
+<div id="position-modal" class="modal-backdrop">
+  <div class="modal">
+    <button class="modal-close" id="modal-close-btn">✕ Close</button>
+    <h3 id="modal-name">—</h3>
+    <div class="modal-sub" id="modal-isin">—</div>
+    <dl id="modal-body"></dl>
+  </div>
+</div>
+
+<div id="toast"><span id="toast-msg">…</span></div>
+
+<script>
+  const fmtMoney = (n, currency = "EUR") => {
+    if (n == null) return "—";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency", currency,
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).format(n);
+  };
+  const fmtPct = (n) => {
+    if (n == null) return "—";
+    const v = (n * 100).toFixed(2);
+    return (n >= 0 ? "+" : "") + v + "%";
+  };
+  const fmtQty = (n) => {
+    if (n == null) return "—";
+    return new Intl.NumberFormat("en-US",
+      { maximumFractionDigits: 4 }).format(n);
+  };
+
+  // null-safe addEventListener
+  const on = (id, evt, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(evt, fn);
+  };
+
+  // Toast helper
+  function toast(message, kind = "") {
+    const t = document.getElementById("toast");
+    t.className = "active " + kind;
+    document.getElementById("toast-msg").textContent = message;
+    if (kind === "ok") setTimeout(() => t.classList.remove("active"), 2200);
+  }
+
+  async function getJSON(url) {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  async function postJSON(url, body = {}) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+
+  function setStaleness(ts) {
+    const el = document.getElementById("staleness");
+    if (!ts) { el.textContent = "never updated"; el.className = "staleness"; return; }
+    const d = new Date(ts.replace(" ", "T") + "Z");
+    const ageMin = (Date.now() - d.getTime()) / 60000;
+    let cls = "fresh"; let label = `${Math.round(ageMin)}m ago`;
+    if (ageMin > 60) { cls = "warn"; label = `${Math.round(ageMin / 60)}h ago`; }
+    if (ageMin > 1440) { cls = "stale"; label = `${Math.round(ageMin / 1440)}d ago`; }
+    el.textContent = `Updated ${label}`;
+    el.className = "staleness " + cls;
+  }
+
+  async function render() {
+    const status = await getJSON("/setup_status");
+    if (!status || !status.configured) {
+      document.getElementById("setup-state").style.display = "block";
+      document.getElementById("dashboard-state").style.display = "none";
+      return;
+    }
+    document.getElementById("setup-state").style.display = "none";
+    document.getElementById("dashboard-state").style.display = "block";
+
+    const progress = await getJSON("/progress");
+    setStaleness(progress && progress.last_update);
+
+    const cash = await getJSON("/DATA/cash.json");
+    const pending = await getJSON("/DATA/pending_orders.json");
+    const inv = await getJSON("/DATA/inventory.json");
+    const wealth = await getJSON("/DATA/wealth.json");
+
+    if (cash && cash.buyingPower) {
+      document.getElementById("kpi-cash").textContent =
+        fmtMoney(cash.buyingPower.cashBalance);
+    }
+    // Wealth display
+    let wealthTotal = 0;
+    const wealthTbody = document.querySelector("#wealth-table tbody");
+    if (wealth && Array.isArray(wealth) && wealth.length) {
+      wealthTbody.innerHTML = "";
+      for (const w of wealth) {
+        if (typeof w.valuation === "number") wealthTotal += w.valuation;
+        const cancelled = (w.invested === false) || (w.funded === false);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${w.name || "—"}</td>
+          <td>${w.portfolio_type || "—"}</td>
+          <td>${w.risk_category || "—"}</td>
+          <td>${w.funded ? "✓" : "—"}</td>
+          <td style="color: ${cancelled ? 'var(--muted)' : 'var(--green)'};">
+            ${cancelled ? "cancelled" : "active"}</td>
+          <td>${fmtMoney(w.valuation)}</td>
+        `;
+        wealthTbody.appendChild(tr);
+      }
+    } else {
+      wealthTbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--muted);">No wealth portfolios.</td></tr>';
+    }
+    document.getElementById("kpi-wealth").textContent = fmtMoney(wealthTotal);
+
+    // Pending orders label (was a separate KPI, now merged into Holdings header)
+    const pendingLabel = document.getElementById("broker-pending-label");
+    if (pending && pendingLabel) {
+      pendingLabel.textContent = pending.count
+        ? `(${pending.count} pending order${pending.count === 1 ? '' : 's'})` : "";
+    }
+
+    if (inv) {
+      // Shape (confirmed 2026-06-06 from live data):
+      //   inv.portfolioGroups        = { id, items: [ {details, items: [Security, ...]}, ... ] }
+      //   inv.ungroupedInventoryItems = { id, items: [Security, ...] }
+      const groupedSecurities = ((inv.portfolioGroups && inv.portfolioGroups.items) || [])
+        .flatMap(g => g.items || []);
+      const ungroupedSecurities = (inv.ungroupedInventoryItems && inv.ungroupedInventoryItems.items) || [];
+      const allItems = [...groupedSecurities, ...ungroupedSecurities];
+
+      // Normalize each holding into a flat object for sorting/filtering
+      allHoldings = allItems.map(sec => {
+        const pos = (sec.inventory && sec.inventory.position) || {};
+        const qty = (pos.filled || 0) + (pos.pending || 0) + (pos.blocked || 0);
+        const tick = sec.quoteTick || {};
+        const price = tick.midPrice;
+        const value = price != null && qty != null ? price * qty : null;
+        const perf = (tick.performancesByTimeframe || []).find(p => p.timeframe === "ONE_DAY");
+        const pnl = perf ? perf.performance : null;
+        return {
+          name: sec.name || "",
+          isin: sec.isin || "",
+          wkn: sec.wkn || "",
+          type: sec.type || "",
+          qty, price, value, pnl,
+          currency: tick.currency || "EUR",
+          isOutdated: tick.isOutdated,
+          fifoPrice: pos.fifoPrice,
+          filled: pos.filled, blocked: pos.blocked, pending: pos.pending,
+          sellableByVenue: pos.sellableByVenue || [],
+          savingsPlan: sec.inventory && sec.inventory.savingsPlan,
+          partnerType: sec.partnerType,
+          isSustainable: sec.isSustainable,
+          isOnWatchlist: sec.isOnWatchlist,
+          numberOfPendingOrders: sec.numberOfPendingOrders,
+          quoteTick: tick,
+          raw: sec,
+        };
+      });
+
+      const securitiesValue = allHoldings.reduce(
+        (s, h) => s + (h.value != null ? h.value : 0), 0);
+      document.getElementById("kpi-securities").textContent = fmtMoney(securitiesValue);
+      const cashBal = (cash && cash.buyingPower && cash.buyingPower.cashBalance) || 0;
+      document.getElementById("kpi-total").textContent =
+        fmtMoney(securitiesValue + cashBal + wealthTotal);
+
+      // Concentration warnings (computed against total broker securities value)
+      const warningsDiv = document.getElementById("concentration-warnings");
+      warningsDiv.innerHTML = "";
+      if (securitiesValue > 0 && allHoldings.length > 0) {
+        const sorted = [...allHoldings].filter(h => h.value != null)
+                                       .sort((a, b) => b.value - a.value);
+        const top1Pct = sorted[0].value / securitiesValue;
+        const top5Pct = sorted.slice(0, 5).reduce((s, h) => s + h.value, 0) / securitiesValue;
+        if (top1Pct >= 0.50) {
+          warningsDiv.innerHTML += `<div class="warning red">⚠️ <strong>${sorted[0].name}</strong> is ${(top1Pct*100).toFixed(1)}% of your Broker holdings — heavy single-name concentration.</div>`;
+        } else if (top1Pct >= 0.30) {
+          warningsDiv.innerHTML += `<div class="warning">⚠️ <strong>${sorted[0].name}</strong> is ${(top1Pct*100).toFixed(1)}% of your Broker holdings.</div>`;
+        }
+        if (top5Pct >= 0.85) {
+          warningsDiv.innerHTML += `<div class="warning red">⚠️ Top 5 holdings are ${(top5Pct*100).toFixed(1)}% of your Broker portfolio — very concentrated.</div>`;
+        } else if (top5Pct >= 0.70) {
+          warningsDiv.innerHTML += `<div class="warning">ℹ️ Top 5 holdings are ${(top5Pct*100).toFixed(1)}% of your Broker portfolio.</div>`;
+        }
+      }
+
+      renderHoldingsTable();
+    }
+  }
+
+  // Holdings: search + sort + click-to-modal
+  let allHoldings = [];
+  let sortKey = "value";
+  let sortDir = "desc";  // 'asc' or 'desc'
+
+  function renderHoldingsTable() {
+    const q = (document.getElementById("holdings-search")?.value || "").toLowerCase().trim();
+    let rows = allHoldings.filter(h => {
+      if (!q) return true;
+      return (h.name + " " + h.isin + " " + h.wkn).toLowerCase().includes(q);
+    });
+    rows.sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey];
+      const an = av == null ? -Infinity : (typeof av === "string" ? av.toLowerCase() : av);
+      const bn = bv == null ? -Infinity : (typeof bv === "string" ? bv.toLowerCase() : bv);
+      const cmp = an < bn ? -1 : an > bn ? 1 : 0;
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    const tbody = document.querySelector("#holdings-table tbody");
+    tbody.innerHTML = "";
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--muted);">
+        No holdings match.</td></tr>`;
+    }
+    for (const h of rows) {
+      const tr = document.createElement("tr");
+      tr.dataset.isin = h.isin;
+      tr.innerHTML = `
+        <td>${escapeHtml(h.name)}</td>
+        <td><code style="color: var(--muted); font-size: 12px;">${escapeHtml(h.isin)}</code></td>
+        <td>${fmtQty(h.qty)}</td>
+        <td>${fmtMoney(h.price, h.currency)}</td>
+        <td>${fmtMoney(h.value, h.currency)}</td>
+        <td class="${h.pnl != null && h.pnl >= 0 ? 'pos' : 'neg'}">${fmtPct(h.pnl)}</td>
+      `;
+      tr.addEventListener("click", () => openPositionModal(h));
+      tbody.appendChild(tr);
+    }
+    document.getElementById("holdings-count").textContent =
+      `${rows.length} of ${allHoldings.length}`;
+
+    // Update sort-arrow indicators
+    document.querySelectorAll("#holdings-table th.sortable").forEach(th => {
+      th.classList.remove("sort-asc", "sort-desc");
+      if (th.dataset.sort === sortKey) th.classList.add("sort-" + sortDir);
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+  }
+
+  function openPositionModal(h) {
+    document.getElementById("modal-name").textContent = h.name || "—";
+    document.getElementById("modal-isin").textContent =
+      `${h.isin}${h.wkn ? "  ·  WKN " + h.wkn : ""}${h.type ? "  ·  " + h.type : ""}`;
+    const dl = document.getElementById("modal-body");
+    const venuesText = (h.sellableByVenue || [])
+      .map(v => `${v.venue}: ${fmtQty(v.sellable)}`).join(", ") || "—";
+    const sp = h.savingsPlan;
+    const spText = sp
+      ? `${fmtMoney(sp.amount)} every ${sp.frequency} (day ${sp.dayOfTheMonth}) — next: ${sp.nextExecutionDate?.date || "—"}`
+      : "—";
+    const pricePerf = h.quoteTick.performancesByTimeframe || [];
+    dl.innerHTML = `
+      <dt>Position</dt><dd>${fmtQty(h.qty)} (filled ${fmtQty(h.filled)} · pending ${fmtQty(h.pending)} · blocked ${fmtQty(h.blocked)})</dd>
+      <dt>Current price</dt><dd>${fmtMoney(h.price, h.currency)} ${h.isOutdated ? '<span style="color: var(--amber); font-size:11px;">⚠ outdated</span>' : ""}</dd>
+      <dt>FIFO cost</dt><dd>${fmtMoney(h.fifoPrice, h.currency)}</dd>
+      <dt>Value</dt><dd>${fmtMoney(h.value, h.currency)}</dd>
+      <dt>Sellable by venue</dt><dd style="font-size: 12px; color: var(--muted);">${escapeHtml(venuesText)}</dd>
+      <dt>Savings plan</dt><dd>${escapeHtml(spText)}</dd>
+      <dt>Partner type</dt><dd>${escapeHtml(h.partnerType || "—")}</dd>
+      <dt>Pending orders</dt><dd>${h.numberOfPendingOrders || 0}</dd>
+      <dt>Performance (TWR)</dt><dd style="font-size: 12px;">
+        ${pricePerf.map(p => `${p.timeframe}: ${fmtPct(p.performance)} (${fmtMoney(p.simpleAbsoluteReturn, h.currency)})`).join("<br>") || "—"}
+      </dd>
+    `;
+    document.getElementById("position-modal").classList.add("active");
+  }
+  function closeModal() {
+    document.getElementById("position-modal").classList.remove("active");
+  }
+
+  async function triggerUpdate() {
+    toast("Fetching… (if push approval needed, tap Approve in your Scalable app)");
+    const res = await postJSON("/update");
+    if (res.status === "ok") {
+      toast("Updated ✓", "ok");
+      await render();
+    } }`, "err");
+      console.error(res);
+    }
+  }
+
+  // Setup form moved to /app/settings.html (see Settings tab).
+  // index.html only renders data; first-time users get sent to Settings.
+
+  document.addEventListener("DOMContentLoaded", () => {
+    on("update-btn", "click", triggerUpdate);
+    on("holdings-search", "input", renderHoldingsTable);
+    on("modal-close-btn", "click", closeModal);
+    // Click outside modal closes it
+    on("position-modal", "click", (e) => {
+      if (e.target && e.target.id === "position-modal") closeModal();
+    });
+    // Sortable headers
+    document.querySelectorAll("#holdings-table th.sortable").forEach(th => {
+      th.addEventListener("click", () => {
+        const key = th.dataset.sort;
+        if (sortKey === key) {
+          sortDir = sortDir === "asc" ? "desc" : "asc";
+        } else {
+          sortKey = key;
+          sortDir = (key === "name" || key === "isin") ? "asc" : "desc";
+        }
+        renderHoldingsTable();
+      });
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModal();
+    });
+    render();
+  });
+</script>
+
+</body>
+</html>

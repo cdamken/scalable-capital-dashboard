@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scalable Capital — Analytics</title>
+<!-- ⚠️ UI STRINGS MUST BE ENGLISH. See ../CLAUDE.md HARD RULES. -->
+<style>
+  :root {
+    --bg: #0f1419; --card: #1a1f2e; --border: #2a3142;
+    --text: #e8eef5; --muted: #7a8599;
+    --green: #4ade80; --red: #f87171; --amber: #fbbf24; --blue: #00b8a9;
+    --purple: #c084fc; --orange: #fb923c; --pink: #f472b6; --yellow: #facc15;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+         background: var(--bg); color: var(--text); margin: 0; padding: 24px;
+         font-variant-numeric: tabular-nums; }
+  .top-bar { position: sticky; top: 0; z-index: 60; background: var(--bg);
+             border-bottom: 1px solid var(--border);
+             margin: -24px -24px 24px; padding: 14px 24px;
+             display: flex; align-items: center; gap: 16px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; }
+  .logo-box { width: 28px; height: 28px; border-radius: 6px;
+              background: linear-gradient(135deg, #00373d, #00b8a9); }
+  .top-bar nav { flex: 1; display: flex; gap: 6px; justify-content: center; }
+  .top-bar .tab { color: var(--muted); padding: 6px 12px; border-radius: 6px;
+                  text-decoration: none; font-size: 13px; font-weight: 600;
+                  border: 1px solid transparent; }
+  .top-bar .tab:hover { color: var(--text); }
+  .top-bar .tab.active { color: var(--blue); background: rgba(0,184,169,0.08);
+                         border-color: var(--blue); }
+  .btn { background: var(--card); color: var(--text); border: 1px solid var(--border);
+         padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+         font-weight: 600; }
+  .btn-primary { background: var(--blue); color: #06292c; border-color: var(--blue); }
+  .staleness { font-size: 11px; padding: 2px 8px; border-radius: 10px;
+               font-weight: 600; background: rgba(122,133,153,0.18); color: var(--muted); }
+  .staleness.fresh { background: rgba(74,222,128,0.18); color: var(--green); }
+  .staleness.warn  { background: rgba(251,191,36,0.18); color: var(--amber); }
+  .staleness.stale { background: rgba(248,113,113,0.18); color: var(--red); }
+
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .card { background: var(--card); border: 1px solid var(--border);
+          border-radius: 12px; padding: 20px; }
+  .card .label { color: var(--muted); font-size: 11px; text-transform: uppercase;
+                 letter-spacing: 0.8px; font-weight: 600; }
+  .card .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .card .value.pos { color: var(--green); }
+  .card .value.neg { color: var(--red); }
+  .card .sub { color: var(--muted); font-size: 11px; margin-top: 6px; }
+
+  h2 { font-size: 18px; margin: 32px 0 12px; }
+  .chart-wrap { background: var(--card); border: 1px solid var(--border);
+                border-radius: 12px; padding: 22px; margin-bottom: 24px; }
+  .chart-wrap text { fill: var(--muted); font-size: 11px;
+                     font-family: inherit; font-variant-numeric: tabular-nums; }
+  .chart-wrap .axis-line { stroke: var(--border); stroke-width: 1; }
+  .chart-wrap .bar:hover, .chart-wrap .slice:hover { opacity: 0.85; }
+  .chart-wrap .bar-label { fill: var(--text); font-size: 11px; font-weight: 600; }
+
+  .twr-table { width: 100%; border-collapse: collapse;
+               background: var(--card); border: 1px solid var(--border);
+               border-radius: 8px; overflow: hidden; }
+  .twr-table th, .twr-table td {
+    padding: 9px 14px; text-align: right; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .twr-table th:first-child, .twr-table td:first-child { text-align: left; }
+  .twr-table th { background: rgba(122,133,153,0.08); font-weight: 600;
+                  color: var(--muted); text-transform: uppercase;
+                  letter-spacing: 0.5px; font-size: 11px; }
+  .twr-table tr:last-child td { border-bottom: none; }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  .ring-chart { display: grid; grid-template-columns: 280px 1fr;
+                gap: 24px; align-items: center; }
+  @media (max-width: 700px) { .ring-chart { grid-template-columns: 1fr; } }
+  .ring-chart svg { width: 280px; height: 280px; }
+  .legend { display: flex; flex-direction: column; gap: 6px; max-height: 260px;
+            overflow-y: auto; }
+  .legend-row { display: grid; grid-template-columns: 14px 1fr auto auto;
+                gap: 8px; align-items: center; font-size: 12px; }
+  .legend-row .dot { width: 10px; height: 10px; border-radius: 2px; }
+  .legend-row .name { color: var(--text); }
+  .legend-row .pct { color: var(--muted); }
+  .legend-row .val { color: var(--text); text-align: right; min-width: 80px; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand"><span class="logo-box"></span> Scalable Capital</div>
+  <nav>
+    <a class="tab" href="/app/index.html">Portfolio</a>
+    <a class="tab active" href="/app/analytics.html">Analytics</a>
+    <a class="tab" href="/app/orders.html">📋 Orders</a>
+    <a class="tab" href="/app/dividends.html">💰 Dividends</a>
+    <a class="tab" href="/app/ledger.html">📒 Ledger</a>
+    <a class="tab" href="/app/wealth.html">🏦 Wealth</a>
+    <a class="tab" href="/app/glossary.html">📖 Glossary</a>
+    <a class="tab" href="/app/settings.html">⚙ Settings</a>
+  </nav>
+  <div class="actions">
+    <span id="staleness" class="staleness">never updated</span>
+    <button id="update-btn" class="btn btn-primary">⟳ Update Now</button>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">XIRR (annualised)</div>
+    <div class="value" id="kpi-xirr">—</div>
+    <div class="sub">cash-flow weighted return</div>
+  </div>
+  <div class="card">
+    <div class="label">Lifetime P&amp;L</div>
+    <div class="value" id="kpi-lifetime">—</div>
+    <div class="sub" id="kpi-lifetime-sub">value − net capital in</div>
+  </div>
+  <div class="card">
+    <div class="label">Net capital committed</div>
+    <div class="value" id="kpi-net-capital" style="color: var(--text);">—</div>
+    <div class="sub">deposits − withdrawals</div>
+  </div>
+  <div class="card">
+    <div class="label">Total distributions</div>
+    <div class="value pos" id="kpi-distributions">—</div>
+    <div class="sub" id="kpi-distrib-count">— received</div>
+  </div>
+</div>
+
+<h2>Time-weighted return (Broker)</h2>
+<div class="chart-wrap">
+  <table class="twr-table">
+    <thead><tr>
+      <th>Timeframe</th><th>Performance</th><th>Absolute return</th>
+    </tr></thead>
+    <tbody id="twr-tbody">
+      <tr><td colspan="3" style="text-align:center; color: var(--muted);">No data yet.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="two-col">
+  <div>
+    <h2>Allocation (Broker holdings)</h2>
+    <div class="chart-wrap">
+      <div class="ring-chart">
+        <svg id="ring-chart" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="legend" id="ring-legend"></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <h2>Dividends per year</h2>
+    <div class="chart-wrap">
+      <svg id="dividends-chart" viewBox="0 0 600 280" preserveAspectRatio="none" style="width:100%; height: 240px; display:block;"></svg>
+    </div>
+  </div>
+</div>
+
+<h2>Net capital committed over time</h2>
+<div class="chart-wrap">
+  <svg id="capital-chart" viewBox="0 0 800 280" preserveAspectRatio="none" style="width:100%; height: 280px; display: block;"></svg>
+  <p style="color: var(--muted); font-size: 12px; margin-top: 8px;">
+    Cumulative net cashflow committed to Scalable (deposits − withdrawals). Distributions, interest and tax NOT included — those are return ON capital, not capital itself. Dashed line at the right end marks today's portfolio market value.
+  </p>
+</div>
+
+<script>
+  const COLORS = ["#00b8a9", "#3b82f6", "#c084fc", "#fb923c", "#4ade80",
+                  "#fbbf24", "#f472b6", "#facc15", "#60a5fa", "#94a3b8",
+                  "#a78bfa", "#34d399"];
+
+  const fmtMoney = (n, currency = "EUR") => {
+    if (n == null || isNaN(n)) return "—";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency", currency,
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).format(n);
+  };
+  const fmtPct = (n, opts = {}) => {
+    if (n == null || isNaN(n)) return "—";
+    const decimals = opts.decimals ?? 2;
+    const v = (n * 100).toFixed(decimals);
+    return (n >= 0 ? "+" : "") + v + "%";
+  };
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-GB",
+      { year: "numeric", month: "short", day: "2-digit" });
+  };
+  const on = (id, evt, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(evt, fn);
+  };
+  async function getJSON(url) {
+    const res = await fetch(url);
+    return res.ok ? res.json() : null;
+  }
+  async function postJSON(url, body = {}) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+  }
+  function setStaleness(ts) {
+    const el = document.getElementById("staleness");
+    if (!ts) { el.textContent = "never updated"; el.className = "staleness"; return; }
+    const d = new Date(ts.replace(" ", "T") + "Z");
+    const ageMin = (Date.now() - d.getTime()) / 60000;
+    let cls = "fresh"; let label = `${Math.round(ageMin)}m ago`;
+    if (ageMin > 60)  { cls = "warn";  label = `${Math.round(ageMin / 60)}h ago`; }
+    if (ageMin > 1440) { cls = "stale"; label = `${Math.round(ageMin / 1440)}d ago`; }
+    el.textContent = `Updated ${label}`;
+    el.className = "staleness " + cls;
+  }
+
+  // ─── XIRR (Newton-Raphson) ────────────────────────────────────────────
+  // cashflows: [{date: Date, amount: number}]
+  // Convention: deposits (money YOU put in) are NEGATIVE, the final
+  // portfolio value (money you'd receive if liquidating today) is POSITIVE.
+  function xirr(cashflows, guess = 0.1) {
+    if (!cashflows || cashflows.length < 2) return null;
+    const t0 = cashflows[0].date.getTime();
+    const years = cashflows.map(cf => (cf.date.getTime() - t0) / (365.25 * 86400000));
+
+    function npv(rate) {
+      let s = 0;
+      for (let i = 0; i < cashflows.length; i++) {
+        s += cashflows[i].amount / Math.pow(1 + rate, years[i]);
+      }
+      return s;
+    }
+    function dnpv(rate) {
+      let s = 0;
+      for (let i = 0; i < cashflows.length; i++) {
+        s -= years[i] * cashflows[i].amount / Math.pow(1 + rate, years[i] + 1);
+      }
+      return s;
+    }
+
+    let rate = guess;
+    for (let i = 0; i < 100; i++) {
+      const f = npv(rate);
+      const fp = dnpv(rate);
+      if (Math.abs(fp) < 1e-12) break;
+      const newRate = rate - f / fp;
+      if (!isFinite(newRate)) break;
+      if (Math.abs(newRate - rate) < 1e-8) return newRate;
+      rate = newRate;
+      if (rate <= -1) rate = -0.99;
+    }
+    if (isFinite(rate) && Math.abs(npv(rate)) < 0.01) return rate;
+    return null;
+  }
+
+  // ─── load + compute ──────────────────────────────────────────────────
+  async function load() {
+    const progress = await getJSON("/progress");
+    setStaleness(progress && progress.last_update);
+
+    const [tx, inv, cash, broker] = await Promise.all([
+      getJSON("/DATA/transactions.json"),
+      getJSON("/DATA/inventory.json"),
+      getJSON("/DATA/cash.json"),
+      getJSON("/DATA/broker_overview.json"),
+    ]);
+
+    const all = (tx && tx.transactions) || [];
+
+    // Holdings — flat list from inventory
+    const groupedSecurities = ((inv?.portfolioGroups?.items) || [])
+      .flatMap(g => g.items || []);
+    const ungrouped = (inv?.ungroupedInventoryItems?.items) || [];
+    const allItems = [...groupedSecurities, ...ungrouped];
+    const holdings = allItems.map(sec => {
+      const pos = sec.inventory?.position || {};
+      const qty = (pos.filled || 0) + (pos.pending || 0) + (pos.blocked || 0);
+      const tick = sec.quoteTick || {};
+      const value = tick.midPrice != null ? tick.midPrice * qty : 0;
+      return { name: sec.name || sec.isin || "—", isin: sec.isin, value };
+    }).filter(h => h.value > 0);
+
+    const securitiesValue = holdings.reduce((s, h) => s + h.value, 0);
+    const cashBalance = cash?.buyingPower?.cashBalance || 0;
+    const currentValue = securitiesValue + cashBalance;
+
+    // Cashflows for XIRR + net capital
+    // Convention: from the USER's perspective:
+    //   DEPOSIT (money in to Scalable)  = NEGATIVE  (you spent it)
+    //   WITHDRAWAL                      = POSITIVE  (you got it back)
+    //   Final portfolio value at today  = POSITIVE  (if you liquidated)
+    // Distributions / interest / tax inside Scalable are INTERNAL — they
+    // affect the portfolio value but aren't external cashflows.
+    const cashflows = [];
+    let netCapital = 0;
+    let totalDistributions = 0;
+    let distCount = 0;
+    for (const t of all) {
+      if (t.type !== "CASH_TRANSACTION") continue;
+      const date = new Date(t.lastEventDateTime);
+      if (isNaN(date.getTime())) continue;
+      const amt = Number(t.amount) || 0;
+      const ct = t.cashTransactionType;
+      if (ct === "DEPOSIT") {
+        cashflows.push({ date, amount: -amt });
+        netCapital += amt;
+      } else if (ct === "WITHDRAWAL") {
+        // amount on withdrawal can already be negative; normalise to positive cashflow back to user
+        cashflows.push({ date, amount: Math.abs(amt) });
+        netCapital -= Math.abs(amt);
+      } else if (ct === "DISTRIBUTION") {
+        totalDistributions += amt;
+        distCount += 1;
+      }
+    }
+    // Final value as today's positive cashflow (only if there were deposits at all)
+    let xirrPct = null;
+    if (cashflows.length && currentValue > 0) {
+      const today = new Date();
+      const cfsForXirr = [...cashflows, { date: today, amount: currentValue }];
+      cfsForXirr.sort((a, b) => a.date - b.date);
+      xirrPct = xirr(cfsForXirr);
+    }
+
+    const lifetimePnl = currentValue - netCapital;
+
+    // ─── KPIs ────────────────────────────────────────────────────────
+    const xirrEl = document.getElementById("kpi-xirr");
+    xirrEl.textContent = fmtPct(xirrPct);
+    xirrEl.className = "value " + (xirrPct == null ? "" : xirrPct >= 0 ? "pos" : "neg");
+
+    const pnlEl = document.getElementById("kpi-lifetime");
+    pnlEl.textContent = fmtMoney(lifetimePnl);
+    pnlEl.className = "value " + (lifetimePnl >= 0 ? "pos" : "neg");
+    document.getElementById("kpi-lifetime-sub").textContent =
+      `${fmtMoney(currentValue)} − ${fmtMoney(netCapital)} committed`;
+
+    document.getElementById("kpi-net-capital").textContent = fmtMoney(netCapital);
+    document.getElementById("kpi-distributions").textContent = fmtMoney(totalDistributions);
+    document.getElementById("kpi-distrib-count").textContent =
+      `${distCount} payment${distCount === 1 ? "" : "s"}`;
+
+    // ─── TWR table ────────────────────────────────────────────────────
+    const tbody = document.getElementById("twr-tbody");
+    tbody.innerHTML = "";
+    const twrs = (broker && broker[0] && Array.isArray(allItems) /* eslint-disable-line */) || null;
+    // broker_overview.json shape: [{ id, valuation, ..., }] BUT timeWeightedReturnByTimeframe
+    // lives inside the GraphQL response under valuation.timeWeightedReturnByTimeframe.
+    // Our broker_overview only kept top-level valuation. So pull TWR from broker_overview if present,
+    // else fall back to inventory portfolio-level performance. For now, attempt both:
+    let twrData = [];
+    // try inventory.portfolioGroups.items[].performance.performancesByTimeframe
+    const perfGroups = ((inv?.portfolioGroups?.items) || []);
+    if (perfGroups.length && perfGroups[0].performance) {
+      twrData = perfGroups[0].performance.performancesByTimeframe || [];
+    }
+    if (!twrData.length) {
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color: var(--muted);">
+        TWR not in current data (refresh to pull).</td></tr>`;
+    } else {
+      // Order timeframes sensibly
+      const order = ["INTRADAY", "TWO_DAYS", "ONE_WEEK", "ONE_MONTH",
+                     "THREE_MONTHS", "SIX_MONTHS", "ONE_YEAR",
+                     "YEAR_TO_DATE", "MAX"];
+      twrData.sort((a, b) => order.indexOf(a.timeframe) - order.indexOf(b.timeframe));
+      for (const t of twrData) {
+        const tr = document.createElement("tr");
+        const cls = (t.performance ?? 0) >= 0 ? "pos" : "neg";
+        const absCls = (t.simpleAbsoluteReturn ?? 0) >= 0 ? "pos" : "neg";
+        tr.innerHTML = `
+          <td>${escapeHtml(t.timeframe)}</td>
+          <td class="${cls}">${fmtPct(t.performance)}</td>
+          <td class="${absCls}">${fmtMoney(t.simpleAbsoluteReturn)}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    // ─── Ring chart ────────────────────────────────────────────────────
+    renderRingChart(holdings, cashBalance);
+
+    // ─── Dividends bar by year ─────────────────────────────────────────
+    const byYear = {};
+    for (const t of all) {
+      if (t.cashTransactionType !== "DISTRIBUTION") continue;
+      const year = (t.lastEventDateTime || "").slice(0, 4) || "—";
+      byYear[year] = (byYear[year] || 0) + (Number(t.amount) || 0);
+    }
+    renderBarChart("dividends-chart", byYear);
+
+    // ─── Net capital line ──────────────────────────────────────────────
+    renderCapitalLine(all, currentValue);
+  }
+
+  function renderRingChart(holdings, cashBalance) {
+    const svg = document.getElementById("ring-chart");
+    const legend = document.getElementById("ring-legend");
+    const items = [...holdings].sort((a, b) => b.value - a.value);
+    if (cashBalance > 0) items.push({ name: "Cash", isin: "—", value: cashBalance });
+    const total = items.reduce((s, h) => s + h.value, 0);
+    if (!total) {
+      svg.innerHTML = `<text x="50" y="50" text-anchor="middle" fill="var(--muted)">No data</text>`;
+      legend.innerHTML = "";
+      return;
+    }
+
+    let svgHtml = "";
+    let legendHtml = "";
+    let cumulative = 0;
+    const cx = 50, cy = 50, r = 38, ringW = 12;
+    items.forEach((h, i) => {
+      const pct = h.value / total;
+      const startAngle = cumulative * 2 * Math.PI - Math.PI / 2;
+      cumulative += pct;
+      const endAngle = cumulative * 2 * Math.PI - Math.PI / 2;
+      // Arc path for a ring slice
+      const largeArc = pct > 0.5 ? 1 : 0;
+      const x1 = cx + r * Math.cos(startAngle);
+      const y1 = cy + r * Math.sin(startAngle);
+      const x2 = cx + r * Math.cos(endAngle);
+      const y2 = cy + r * Math.sin(endAngle);
+      const innerR = r - ringW;
+      const x3 = cx + innerR * Math.cos(endAngle);
+      const y3 = cy + innerR * Math.sin(endAngle);
+      const x4 = cx + innerR * Math.cos(startAngle);
+      const y4 = cy + innerR * Math.sin(startAngle);
+      const color = COLORS[i % COLORS.length];
+      svgHtml += `<path class="slice" d="
+        M ${x1} ${y1}
+        A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}
+        L ${x3} ${y3}
+        A ${innerR} ${innerR} 0 ${largeArc} 0 ${x4} ${y4}
+        Z" fill="${color}">
+        <title>${h.name}: ${(pct*100).toFixed(1)}% — ${fmtMoney(h.value)}</title>
+      </path>`;
+      legendHtml += `<div class="legend-row">
+        <span class="dot" style="background: ${color};"></span>
+        <span class="name">${escapeHtml(h.name)}</span>
+        <span class="pct">${(pct*100).toFixed(1)}%</span>
+        <span class="val">${fmtMoney(h.value)}</span>
+      </div>`;
+    });
+    svgHtml += `<text x="50" y="48" text-anchor="middle" fill="var(--muted)" style="font-size: 5px;">TOTAL</text>`;
+    svgHtml += `<text x="50" y="56" text-anchor="middle" fill="var(--text)" style="font-size: 6.5px; font-weight: 700;">${fmtMoney(total)}</text>`;
+    svg.innerHTML = svgHtml;
+    legend.innerHTML = legendHtml;
+  }
+
+  function renderBarChart(svgId, byKey) {
+    const svg = document.getElementById(svgId);
+    svg.innerHTML = "";
+    const keys = Object.keys(byKey).sort();
+    if (!keys.length) {
+      svg.innerHTML = `<text x="300" y="140" text-anchor="middle">No data</text>`;
+      return;
+    }
+    const values = keys.map(k => byKey[k]);
+    const maxV = Math.max(...values, 1);
+    const W = 600, H = 280;
+    const M = { top: 20, right: 20, bottom: 40, left: 60 };
+    const innerW = W - M.left - M.right;
+    const innerH = H - M.top - M.bottom;
+    const barW = innerW / keys.length * 0.65;
+    const gap = innerW / keys.length * 0.35;
+
+    svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${M.top + innerH}" x2="${M.left + innerW}" y2="${M.top + innerH}"/>`;
+    for (let i = 0; i <= 4; i++) {
+      const y = M.top + innerH - (innerH * i / 4);
+      const val = maxV * i / 4;
+      svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${y}" x2="${M.left + innerW}" y2="${y}" stroke-dasharray="2,3" opacity="0.3"/>`;
+      svg.innerHTML += `<text x="${M.left - 8}" y="${y + 4}" text-anchor="end">${fmtMoney(val)}</text>`;
+    }
+    keys.forEach((k, i) => {
+      const v = byKey[k];
+      const h = v / maxV * innerH;
+      const x = M.left + (innerW / keys.length) * i + gap / 2;
+      const y = M.top + innerH - h;
+      svg.innerHTML += `<rect class="bar" x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="var(--blue)">
+        <title>${k}: ${fmtMoney(v)}</title>
+      </rect>`;
+      svg.innerHTML += `<text class="bar-label" x="${x + barW / 2}" y="${y - 6}" text-anchor="middle">${fmtMoney(v)}</text>`;
+      svg.innerHTML += `<text x="${x + barW / 2}" y="${M.top + innerH + 18}" text-anchor="middle">${k}</text>`;
+    });
+  }
+
+  function renderCapitalLine(all, currentValue) {
+    const svg = document.getElementById("capital-chart");
+    svg.innerHTML = "";
+
+    // Build cumulative net capital timeline
+    const events = [];
+    for (const t of all) {
+      if (t.type !== "CASH_TRANSACTION") continue;
+      const date = new Date(t.lastEventDateTime);
+      if (isNaN(date.getTime())) continue;
+      const ct = t.cashTransactionType;
+      const amt = Number(t.amount) || 0;
+      if (ct === "DEPOSIT") events.push({ date, delta: amt });
+      else if (ct === "WITHDRAWAL") events.push({ date, delta: -Math.abs(amt) });
+    }
+    if (!events.length) {
+      svg.innerHTML = `<text x="400" y="140" text-anchor="middle">No deposits/withdrawals yet</text>`;
+      return;
+    }
+    events.sort((a, b) => a.date - b.date);
+    let running = 0;
+    const series = events.map(e => { running += e.delta; return { date: e.date, value: running }; });
+
+    const W = 800, H = 280;
+    const M = { top: 20, right: 40, bottom: 40, left: 70 };
+    const innerW = W - M.left - M.right;
+    const innerH = H - M.top - M.bottom;
+
+    const t0 = series[0].date.getTime();
+    const t1 = Math.max(series[series.length - 1].date.getTime(), Date.now());
+    const minY = Math.min(0, ...series.map(s => s.value));
+    const maxY = Math.max(series[series.length - 1].value, currentValue, 1);
+    const yRange = maxY - minY || 1;
+    const xRange = t1 - t0 || 1;
+    const X = (d) => M.left + ((d.getTime() - t0) / xRange) * innerW;
+    const Y = (v) => M.top + innerH - ((v - minY) / yRange) * innerH;
+
+    // axes
+    svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${M.top + innerH}" x2="${M.left + innerW}" y2="${M.top + innerH}"/>`;
+    for (let i = 0; i <= 4; i++) {
+      const y = M.top + innerH - (innerH * i / 4);
+      const val = minY + yRange * i / 4;
+      svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${y}" x2="${M.left + innerW}" y2="${y}" stroke-dasharray="2,3" opacity="0.3"/>`;
+      svg.innerHTML += `<text x="${M.left - 8}" y="${y + 4}" text-anchor="end">${fmtMoney(val)}</text>`;
+    }
+    // x-axis labels (first, middle, last)
+    const labels = [t0, t0 + xRange / 2, t1];
+    labels.forEach(ts => {
+      const x = M.left + ((ts - t0) / xRange) * innerW;
+      svg.innerHTML += `<text x="${x}" y="${M.top + innerH + 18}" text-anchor="middle">${fmtDate(new Date(ts).toISOString())}</text>`;
+    });
+
+    // step line (capital committed only changes at deposit/withdrawal events)
+    let path = "";
+    series.forEach((s, i) => {
+      const x = X(s.date), y = Y(s.value);
+      if (i === 0) { path += `M ${x} ${y} `; }
+      else {
+        const prev = series[i-1];
+        path += `L ${X(s.date)} ${Y(prev.value)} L ${x} ${y} `;
+      }
+    });
+    // extend line to today at last value
+    const last = series[series.length - 1];
+    path += `L ${X(new Date())} ${Y(last.value)} `;
+
+    svg.innerHTML += `<path d="${path}" fill="none" stroke="var(--blue)" stroke-width="2"/>`;
+
+    // Mark current portfolio value as a dashed line at the right
+    const yCurrent = Y(currentValue);
+    svg.innerHTML += `<line x1="${M.left}" y1="${yCurrent}" x2="${M.left + innerW}" y2="${yCurrent}" stroke="var(--green)" stroke-width="1" stroke-dasharray="4,4" opacity="0.6"/>`;
+    svg.innerHTML += `<circle cx="${X(new Date())}" cy="${yCurrent}" r="4" fill="var(--green)"/>`;
+    svg.innerHTML += `<text x="${M.left + innerW + 4}" y="${yCurrent + 4}" text-anchor="start" fill="var(--green)" style="font-weight:600;">${fmtMoney(currentValue)}</text>`;
+  }
+
+  async function triggerUpdate() {
+    const btn = document.getElementById("update-btn");
+    if (btn) btn.disabled = true;
+    const res = await postJSON("/update");
+    if (btn) btn.disabled = false;
+    if (res.status === "ok") await load();
+    else alert("Update failed: " + res.status);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    on("update-btn", "click", triggerUpdate);
+    load();
+  });
+</script>
+
+</body>
+</html>

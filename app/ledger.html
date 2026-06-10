@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scalable Capital — Ledger</title>
+<!-- ⚠️ UI STRINGS MUST BE ENGLISH. See ../CLAUDE.md HARD RULES. -->
+<style>
+  :root {
+    --bg: #0f1419; --card: #1a1f2e; --border: #2a3142;
+    --text: #e8eef5; --muted: #7a8599;
+    --green: #4ade80; --red: #f87171; --amber: #fbbf24; --blue: #00b8a9;
+    --purple: #c084fc;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+         background: var(--bg); color: var(--text); margin: 0; padding: 24px;
+         font-variant-numeric: tabular-nums; }
+  .top-bar { position: sticky; top: 0; z-index: 60; background: var(--bg);
+             border-bottom: 1px solid var(--border);
+             margin: -24px -24px 24px; padding: 14px 24px;
+             display: flex; align-items: center; gap: 16px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; }
+  .logo-box { width: 28px; height: 28px; border-radius: 6px;
+              background: linear-gradient(135deg, #00373d, #00b8a9); }
+  .top-bar nav { flex: 1; display: flex; gap: 6px; justify-content: center; }
+  .top-bar .tab { color: var(--muted); padding: 6px 12px; border-radius: 6px;
+                  text-decoration: none; font-size: 13px; font-weight: 600;
+                  border: 1px solid transparent; }
+  .top-bar .tab:hover { color: var(--text); }
+  .top-bar .tab.active { color: var(--blue); background: rgba(0,184,169,0.08);
+                         border-color: var(--blue); }
+  .btn { background: var(--card); color: var(--text); border: 1px solid var(--border);
+         padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+         font-weight: 600; }
+  .btn:hover { border-color: var(--blue); }
+  .btn-primary { background: var(--blue); color: #06292c; border-color: var(--blue); }
+
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
+  .card { background: var(--card); border: 1px solid var(--border);
+          border-radius: 12px; padding: 18px 20px; }
+  .card .label { color: var(--muted); font-size: 11px; text-transform: uppercase;
+                 letter-spacing: 0.8px; font-weight: 600; }
+  .card .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .card .value.pos { color: var(--green); }
+  .card .value.neg { color: var(--red); }
+  .card .sub { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+  .controls { display: flex; gap: 12px; margin-bottom: 16px; align-items: center;
+              flex-wrap: wrap; }
+  .controls input, .controls select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 12px; border-radius: 6px; font-size: 13px;
+  }
+  .controls input { width: 240px; }
+  .controls input:focus, .controls select:focus { outline: none; border-color: var(--blue); }
+  .controls .count { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+          border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--border);
+           font-size: 13px; }
+  th:first-child, td:first-child,
+  th:nth-child(2), td:nth-child(2),
+  th:nth-child(3), td:nth-child(3) { text-align: left; }
+  th { background: rgba(122,133,153,0.08); font-weight: 600; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; }
+  tr:last-child td { border-bottom: none; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px;
+           font-size: 11px; font-weight: 600; text-transform: uppercase;
+           letter-spacing: 0.3px; }
+  .badge.deposit       { background: rgba(74,222,128,0.15); color: var(--green); }
+  .badge.distribution  { background: rgba(0,184,169,0.15);  color: var(--blue); }
+  .badge.interest      { background: rgba(0,184,169,0.10);  color: var(--blue); }
+  .badge.tax_return    { background: rgba(74,222,128,0.10); color: var(--green); }
+  .badge.tax           { background: rgba(248,113,113,0.15); color: var(--red); }
+  .badge.withdrawal    { background: rgba(248,113,113,0.10); color: var(--red); }
+  .badge.fee           { background: rgba(248,113,113,0.10); color: var(--red); }
+  .badge.unknown       { background: rgba(122,133,153,0.15); color: var(--muted); }
+
+  .amount-pos { color: var(--green); }
+  .amount-neg { color: var(--red); }
+  .amount-zero { color: var(--muted); }
+
+  .staleness { font-size: 11px; padding: 2px 8px; border-radius: 10px;
+               font-weight: 600; background: rgba(122,133,153,0.18); color: var(--muted); }
+  .staleness.fresh { background: rgba(74,222,128,0.18); color: var(--green); }
+  .staleness.warn  { background: rgba(251,191,36,0.18); color: var(--amber); }
+  .staleness.stale { background: rgba(248,113,113,0.18); color: var(--red); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand"><span class="logo-box"></span> Scalable Capital</div>
+  <nav>
+    <a class="tab" href="/app/index.html">Portfolio</a>
+    <a class="tab" href="/app/analytics.html">Analytics</a>
+    <a class="tab" href="/app/orders.html">📋 Orders</a>
+    <a class="tab" href="/app/dividends.html">💰 Dividends</a>
+    <a class="tab active" href="/app/ledger.html">📒 Ledger</a>
+    <a class="tab" href="/app/wealth.html">🏦 Wealth</a>
+    <a class="tab" href="/app/glossary.html">📖 Glossary</a>
+    <a class="tab" href="/app/settings.html">⚙ Settings</a>
+  </nav>
+  <div class="actions">
+    <span id="staleness" class="staleness">never updated</span>
+    <button id="update-btn" class="btn btn-primary">⟳ Update Now</button>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">Money in</div>
+    <div class="value pos" id="kpi-in">—</div>
+    <div class="sub">Deposits + tax returns + interest</div>
+  </div>
+  <div class="card">
+    <div class="label">Money out</div>
+    <div class="value neg" id="kpi-out">—</div>
+    <div class="sub">Withdrawals + fees + taxes</div>
+  </div>
+  <div class="card">
+    <div class="label">Distributions</div>
+    <div class="value pos" id="kpi-distrib">—</div>
+    <div class="sub" id="kpi-distrib-count">— payments</div>
+  </div>
+  <div class="card">
+    <div class="label">Net cashflow</div>
+    <div class="value" id="kpi-net">—</div>
+    <div class="sub">in − out + distributions</div>
+  </div>
+  <div class="card">
+    <div class="label">Entries</div>
+    <div class="value" id="kpi-count">—</div>
+    <div class="sub" id="kpi-count-sub">in current filter</div>
+  </div>
+</div>
+
+<div class="controls">
+  <input id="search" type="search" placeholder="Search description or ISIN…">
+  <select id="type-filter">
+    <option value="">All types</option>
+    <option value="DEPOSIT">Deposit</option>
+    <option value="WITHDRAWAL">Withdrawal</option>
+    <option value="DISTRIBUTION">Distribution (dividends)</option>
+    <option value="INTEREST">Interest</option>
+    <option value="TAX">Tax</option>
+    <option value="TAX_RETURN">Tax return</option>
+    <option value="FEE">Fee</option>
+  </select>
+  <span class="count" id="row-count"></span>
+  <a class="btn" href="/export/ledger.csv" download>↓ Export CSV</a>
+</div>
+
+<table id="ledger-table">
+  <thead><tr>
+    <th>Date</th>
+    <th>Type</th>
+    <th>Description</th>
+    <th>ISIN</th>
+    <th>Amount</th>
+    <th>Status</th>
+  </tr></thead>
+  <tbody>
+    <tr><td colspan="6" style="text-align:center; color: var(--muted);">
+      Click <em>Update Now</em> to load cash movements.
+    </td></tr>
+  </tbody>
+</table>
+
+<script>
+  const fmtMoney = (n, currency = "EUR", signed = false) => {
+    if (n == null || isNaN(n)) return "—";
+    const s = new Intl.NumberFormat("en-US", {
+      style: "currency", currency,
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).format(Math.abs(n));
+    if (!signed) return n < 0 ? "−" + s : s;
+    return (n > 0 ? "+" : n < 0 ? "−" : "") + s;
+  };
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-GB",
+      { year: "numeric", month: "short", day: "2-digit" });
+  };
+  const on = (id, evt, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(evt, fn);
+  };
+  async function getJSON(url) {
+    const res = await fetch(url);
+    return res.ok ? res.json() : null;
+  }
+  async function postJSON(url, body = {}) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+  }
+  function setStaleness(ts) {
+    const el = document.getElementById("staleness");
+    if (!ts) { el.textContent = "never updated"; el.className = "staleness"; return; }
+    const d = new Date(ts.replace(" ", "T") + "Z");
+    const ageMin = (Date.now() - d.getTime()) / 60000;
+    let cls = "fresh"; let label = `${Math.round(ageMin)}m ago`;
+    if (ageMin > 60)  { cls = "warn";  label = `${Math.round(ageMin / 60)}h ago`; }
+    if (ageMin > 1440) { cls = "stale"; label = `${Math.round(ageMin / 1440)}d ago`; }
+    el.textContent = `Updated ${label}`;
+    el.className = "staleness " + cls;
+  }
+
+  // Bucket each transaction as MONEY IN, OUT, or NEUTRAL (informational).
+  const IN_TYPES  = new Set(["DEPOSIT", "TAX_RETURN", "INTEREST"]);
+  const OUT_TYPES = new Set(["WITHDRAWAL", "TAX", "FEE"]);
+  const DIST_TYPES = new Set(["DISTRIBUTION"]);
+
+  let allTx = [];
+
+  async function load() {
+    const progress = await getJSON("/progress");
+    setStaleness(progress && progress.last_update);
+
+    const tx = await getJSON("/DATA/transactions.json");
+    if (!tx || !tx.transactions) { allTx = []; render(); return; }
+    allTx = tx.transactions
+      .filter(t => t.type === "CASH_TRANSACTION")
+      .sort((a, b) => (b.lastEventDateTime || "").localeCompare(a.lastEventDateTime || ""));
+    render();
+  }
+
+  function render() {
+    const q = (document.getElementById("search").value || "").toLowerCase().trim();
+    const typeF = document.getElementById("type-filter").value;
+
+    const filtered = allTx.filter(t => {
+      const ct = t.cashTransactionType || "";
+      if (typeF && ct !== typeF) return false;
+      if (q) {
+        const blob = `${t.description || ""} ${t.relatedIsin || ""}`.toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      return true;
+    });
+
+    // KPIs computed over the FILTERED set so user sees what they're filtering
+    let moneyIn = 0, moneyOut = 0, distributions = 0, distCount = 0;
+    for (const t of filtered) {
+      const amt = Number(t.amount) || 0;
+      const ct = t.cashTransactionType || "";
+      if (IN_TYPES.has(ct))   moneyIn   += amt;
+      if (OUT_TYPES.has(ct))  moneyOut  += Math.abs(amt);
+      if (DIST_TYPES.has(ct)) { distributions += amt; distCount += 1; }
+    }
+    const net = moneyIn - moneyOut + distributions;
+
+    document.getElementById("kpi-in").textContent     = fmtMoney(moneyIn);
+    document.getElementById("kpi-out").textContent    = "−" + fmtMoney(moneyOut).replace("−", "");
+    document.getElementById("kpi-distrib").textContent = fmtMoney(distributions);
+    document.getElementById("kpi-distrib-count").textContent =
+      `${distCount} payment${distCount === 1 ? "" : "s"}`;
+    const netEl = document.getElementById("kpi-net");
+    netEl.textContent = fmtMoney(net, "EUR", true);
+    netEl.className = "value " + (net > 0 ? "pos" : net < 0 ? "neg" : "");
+    document.getElementById("kpi-count").textContent = String(filtered.length);
+    document.getElementById("kpi-count-sub").textContent =
+      allTx.length === filtered.length ? "all cash movements" : `of ${allTx.length} total`;
+    document.getElementById("row-count").textContent =
+      `${filtered.length} ${filtered.length === 1 ? "entry" : "entries"}`;
+
+    const tbody = document.querySelector("#ledger-table tbody");
+    tbody.innerHTML = "";
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--muted);">
+        No entries match these filters.</td></tr>`;
+      return;
+    }
+    for (const t of filtered) {
+      const ct = (t.cashTransactionType || "UNKNOWN").toLowerCase();
+      const amt = Number(t.amount) || 0;
+      const amtClass = amt > 0 ? "amount-pos" : amt < 0 ? "amount-neg" : "amount-zero";
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${fmtDate(t.lastEventDateTime)}</td>
+        <td><span class="badge ${ct}">${escapeHtml(t.cashTransactionType || "—")}</span></td>
+        <td>${escapeHtml(t.description || "—")}</td>
+        <td><code style="color: var(--muted); font-size: 12px;">${escapeHtml(t.relatedIsin || "—")}</code></td>
+        <td class="${amtClass}">${fmtMoney(amt, t.currency || "EUR", true)}</td>
+        <td><span class="badge ${escapeHtml((t.status || "").toLowerCase())}">${escapeHtml(t.status || "—")}</span></td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function triggerUpdate() {
+    const btn = document.getElementById("update-btn");
+    if (btn) btn.disabled = true;
+    const res = await postJSON("/update");
+    if (btn) btn.disabled = false;
+    if (res.status === "ok") await load();
+    else alert("Update failed: " + res.status);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    on("update-btn", "click", triggerUpdate);
+    on("search", "input", render);
+    on("type-filter", "change", render);
+    load();
+  });
+</script>
+
+</body>
+</html>

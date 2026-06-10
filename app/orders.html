@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scalable Capital — Orders</title>
+<!--
+  ⚠️  UI STRINGS MUST BE ENGLISH. No Spanish.
+  See ../CLAUDE.md "HARD RULES" + user memory feedback_sc_ui_english.md.
+-->
+<style>
+  :root {
+    --bg: #0f1419;
+    --card: #1a1f2e;
+    --border: #2a3142;
+    --text: #e8eef5;
+    --muted: #7a8599;
+    --green: #4ade80;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --blue: #00b8a9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    background: var(--bg); color: var(--text);
+    margin: 0; padding: 24px; font-variant-numeric: tabular-nums;
+  }
+  .top-bar {
+    position: sticky; top: 0; z-index: 60;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    margin: -24px -24px 24px;
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-weight: 700; letter-spacing: 0.2px;
+  }
+  .logo-box {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: linear-gradient(135deg, #00373d, #00b8a9);
+    display: inline-block;
+  }
+  .top-bar nav { flex: 1; display: flex; gap: 6px; justify-content: center; }
+  .top-bar .tab {
+    color: var(--muted); padding: 6px 12px; border-radius: 6px;
+    text-decoration: none; font-size: 13px; font-weight: 600;
+    border: 1px solid transparent;
+  }
+  .top-bar .tab:hover { color: var(--text); }
+  .top-bar .tab.active {
+    color: var(--blue);
+    background: rgba(0, 184, 169, 0.08);
+    border-color: var(--blue);
+  }
+  .btn {
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); padding: 8px 14px;
+    border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+  .btn:hover { border-color: var(--blue); }
+  .btn-primary { background: var(--blue); color: #06292c; border-color: var(--blue); }
+
+  .grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 16px; margin-bottom: 24px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+  }
+  .card .label {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+  }
+  .card .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .card .value.pos { color: var(--green); }
+  .card .value.neg { color: var(--red); }
+  .card .sub {
+    color: var(--muted); font-size: 12px; margin-top: 6px;
+  }
+
+  .controls {
+    display: flex; gap: 12px; margin-bottom: 16px; align-items: center;
+    flex-wrap: wrap;
+  }
+  .controls input, .controls select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 12px; border-radius: 6px; font-size: 13px;
+  }
+  .controls input { width: 280px; }
+  .controls input:focus, .controls select:focus { outline: none; border-color: var(--blue); }
+  .controls .count {
+    color: var(--muted); font-size: 12px; margin-left: auto;
+  }
+
+  table {
+    width: 100%; border-collapse: collapse; background: var(--card);
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  th, td {
+    padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  th:first-child, td:first-child,
+  th:nth-child(2), td:nth-child(2),
+  th:nth-child(3), td:nth-child(3) { text-align: left; }
+  th {
+    background: rgba(122, 133, 153, 0.08); font-weight: 600;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.5px; font-size: 11px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr.pending { background: rgba(251, 191, 36, 0.05); }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .badge.buy   { background: rgba(0, 184, 169, 0.12); color: var(--blue); }
+  .badge.sell  { background: rgba(192, 132, 252, 0.12); color: #c084fc; }
+  .badge.pending  { background: rgba(251, 191, 36, 0.18); color: var(--amber); }
+  .badge.filled, .badge.settled, .badge.confirmed
+                  { background: rgba(74, 222, 128, 0.15); color: var(--green); }
+  .badge.cancelled, .badge.cancel_requested, .badge.rejected, .badge.expired
+                  { background: rgba(248, 113, 113, 0.15); color: var(--red); }
+  .badge.savings_plan { background: rgba(122, 133, 153, 0.15); color: var(--muted); }
+
+  .staleness {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; background: rgba(122, 133, 153, 0.18);
+    color: var(--muted);
+  }
+  .staleness.fresh { background: rgba(74, 222, 128, 0.18); color: var(--green); }
+  .staleness.warn  { background: rgba(251, 191, 36, 0.18); color: var(--amber); }
+  .staleness.stale { background: rgba(248, 113, 113, 0.18); color: var(--red); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand"><span class="logo-box"></span> Scalable Capital</div>
+  <nav>
+    <a class="tab" href="/app/index.html">Portfolio</a>
+    <a class="tab" href="/app/analytics.html">Analytics</a>
+    <a class="tab active" href="/app/orders.html">📋 Orders</a>
+    <a class="tab" href="/app/dividends.html">💰 Dividends</a>
+    <a class="tab" href="/app/ledger.html">📒 Ledger</a>
+    <a class="tab" href="/app/wealth.html">🏦 Wealth</a>
+    <a class="tab" href="/app/glossary.html">📖 Glossary</a>
+    <a class="tab" href="/app/settings.html">⚙ Settings</a>
+  </nav>
+  <div class="actions">
+    <span id="staleness" class="staleness">never updated</span>
+    <button id="update-btn" class="btn btn-primary">⟳ Update Now</button>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">Trades</div>
+    <div class="value" id="kpi-count">—</div>
+    <div class="sub" id="kpi-count-sub">in window</div>
+  </div>
+  <div class="card">
+    <div class="label">Total bought</div>
+    <div class="value" id="kpi-bought">—</div>
+    <div class="sub">€ outflow (BUY)</div>
+  </div>
+  <div class="card">
+    <div class="label">Total sold</div>
+    <div class="value" id="kpi-sold">—</div>
+    <div class="sub">€ inflow (SELL)</div>
+  </div>
+  <div class="card">
+    <div class="label">Net flow</div>
+    <div class="value" id="kpi-net">—</div>
+    <div class="sub">sells − buys</div>
+  </div>
+</div>
+
+<div class="controls">
+  <input id="search" type="search" placeholder="Search by ISIN or security name…">
+  <select id="side-filter">
+    <option value="">All sides</option>
+    <option value="BUY">BUY only</option>
+    <option value="SELL">SELL only</option>
+  </select>
+  <select id="status-filter">
+    <option value="">All statuses</option>
+    <option value="PENDING">Pending</option>
+    <option value="FILLED">Filled</option>
+    <option value="SETTLED">Settled</option>
+    <option value="CONFIRMED">Confirmed</option>
+    <option value="CANCELLED">Cancelled</option>
+    <option value="EXPIRED">Expired</option>
+    <option value="REJECTED">Rejected</option>
+  </select>
+  <select id="type-filter">
+    <option value="">Single + Savings plan</option>
+    <option value="SINGLE">Single orders only</option>
+    <option value="SAVINGS_PLAN">Savings plan only</option>
+  </select>
+  <span class="count" id="row-count"></span>
+  <a class="btn" href="/export/orders.csv" download>↓ Export CSV</a>
+</div>
+
+<table id="orders-table">
+  <thead><tr>
+    <th>Date</th>
+    <th>Security</th>
+    <th>ISIN</th>
+    <th>Side</th>
+    <th>Type</th>
+    <th>Quantity</th>
+    <th>Amount (€)</th>
+    <th>Status</th>
+  </tr></thead>
+  <tbody>
+    <tr><td colspan="8" style="text-align:center; color: var(--muted);">
+      Click <em>Update Now</em> to fetch orders.
+    </td></tr>
+  </tbody>
+</table>
+
+<script>
+  // ─── helpers ──────────────────────────────────────────────────────────
+  const fmtMoney = (n, currency = "EUR") => {
+    if (n == null || isNaN(n)) return "—";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency", currency,
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).format(n);
+  };
+  const fmtQty = (n) => {
+    if (n == null || isNaN(n)) return "—";
+    return new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(n);
+  };
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleString("en-GB", {
+      year: "numeric", month: "short", day: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+    });
+  };
+  const on = (id, evt, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(evt, fn);
+  };
+  async function getJSON(url) {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return res.json();
+  }
+  async function postJSON(url, body = {}) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+  function setStaleness(ts) {
+    const el = document.getElementById("staleness");
+    if (!ts) { el.textContent = "never updated"; el.className = "staleness"; return; }
+    const d = new Date(ts.replace(" ", "T") + "Z");
+    const ageMin = (Date.now() - d.getTime()) / 60000;
+    let cls = "fresh"; let label = `${Math.round(ageMin)}m ago`;
+    if (ageMin > 60)  { cls = "warn";  label = `${Math.round(ageMin / 60)}h ago`; }
+    if (ageMin > 1440) { cls = "stale"; label = `${Math.round(ageMin / 1440)}d ago`; }
+    el.textContent = `Updated ${label}`;
+    el.className = "staleness " + cls;
+  }
+
+  // ─── state ───────────────────────────────────────────────────────────
+  let allOrders = [];
+
+  // ─── data load ──────────────────────────────────────────────────────
+  async function load() {
+    const progress = await getJSON("/progress");
+    setStaleness(progress && progress.last_update);
+
+    const tx = await getJSON("/DATA/transactions.json");
+    if (!tx || !tx.transactions) {
+      allOrders = [];
+      render();
+      return;
+    }
+    // Keep only security transactions (orders); skip cash movements.
+    allOrders = tx.transactions
+      .filter(t => t.type === "SECURITY_TRANSACTION")
+      .sort((a, b) => {
+        // Pending first, then by date desc
+        const aPending = a.status === "PENDING" ? 0 : 1;
+        const bPending = b.status === "PENDING" ? 0 : 1;
+        if (aPending !== bPending) return aPending - bPending;
+        return (b.lastEventDateTime || "").localeCompare(a.lastEventDateTime || "");
+      });
+    render();
+  }
+
+  // ─── render ─────────────────────────────────────────────────────────
+  function render() {
+    const q = (document.getElementById("search").value || "").toLowerCase().trim();
+    const sideF = document.getElementById("side-filter").value;
+    const statusF = document.getElementById("status-filter").value;
+    const typeF = document.getElementById("type-filter").value;
+
+    const filtered = allOrders.filter(t => {
+      if (sideF && t.side !== sideF) return false;
+      if (statusF && t.status !== statusF) return false;
+      if (typeF && t.securityTransactionType !== typeF) return false;
+      if (q) {
+        const blob = `${t.description || ""} ${t.isin || ""}`.toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      return true;
+    });
+
+    // KPIs
+    let count = filtered.length;
+    let bought = 0, sold = 0;
+    for (const t of filtered) {
+      const amt = Number(t.amount) || 0;
+      if (t.side === "BUY") bought += amt;
+      else if (t.side === "SELL") sold += amt;
+    }
+    const net = sold - bought;
+
+    document.getElementById("kpi-count").textContent = String(count);
+    document.getElementById("kpi-count-sub").textContent =
+      allOrders.length === count ? "all orders" : `of ${allOrders.length} total`;
+    document.getElementById("kpi-bought").textContent = fmtMoney(bought);
+    document.getElementById("kpi-sold").textContent = fmtMoney(sold);
+    const netEl = document.getElementById("kpi-net");
+    netEl.textContent = fmtMoney(net);
+    netEl.className = "value " + (net > 0 ? "pos" : net < 0 ? "neg" : "");
+
+    document.getElementById("row-count").textContent =
+      `${count} order${count === 1 ? "" : "s"}`;
+
+    // Table
+    const tbody = document.querySelector("#orders-table tbody");
+    tbody.innerHTML = "";
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color: var(--muted);">
+        No orders match these filters.</td></tr>`;
+      return;
+    }
+    for (const t of filtered) {
+      const tr = document.createElement("tr");
+      if (t.status === "PENDING") tr.classList.add("pending");
+
+      const sideClass = t.side === "BUY" ? "buy" : t.side === "SELL" ? "sell" : "";
+      const statusClass = (t.status || "").toLowerCase();
+      const typeBadge = t.securityTransactionType === "SAVINGS_PLAN"
+        ? '<span class="badge savings_plan">SAVINGS</span>' : "—";
+
+      tr.innerHTML = `
+        <td>${fmtDate(t.lastEventDateTime)}</td>
+        <td>${escapeHtml(t.description || "—")}</td>
+        <td><code style="color: var(--muted); font-size: 12px;">${escapeHtml(t.isin || "—")}</code></td>
+        <td><span class="badge ${sideClass}">${escapeHtml(t.side || "—")}</span></td>
+        <td>${typeBadge}</td>
+        <td>${fmtQty(t.quantity)}</td>
+        <td>${t.amount != null ? fmtMoney(t.amount, t.currency || "EUR") : "—"}</td>
+        <td><span class="badge ${statusClass}">${escapeHtml(t.status || "—")}</span></td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+  }
+
+  // ─── update trigger ─────────────────────────────────────────────────
+  async function triggerUpdate() {
+    const btn = document.getElementById("update-btn");
+    if (btn) btn.disabled = true;
+    const res = await postJSON("/update");
+    if (btn) btn.disabled = false;
+    if (res.status === "ok") {
+      await load();
+    } else {
+      alert("Update failed: " + res.status);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    on("update-btn", "click", triggerUpdate);
+    on("search", "input", render);
+    on("side-filter", "change", render);
+    on("status-filter", "change", render);
+    on("type-filter", "change", render);
+    load();
+  });
+</script>
+
+</body>
+</html>

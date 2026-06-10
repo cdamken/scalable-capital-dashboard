@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scalable Capital — Glossary</title>
+<!-- ⚠️ UI STRINGS MUST BE ENGLISH. See ../CLAUDE.md HARD RULES. -->
+<style>
+  :root {
+    --bg: #0f1419; --card: #1a1f2e; --border: #2a3142;
+    --text: #e8eef5; --muted: #7a8599;
+    --green: #4ade80; --red: #f87171; --amber: #fbbf24; --blue: #00b8a9;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+         background: var(--bg); color: var(--text); margin: 0; padding: 24px;
+         line-height: 1.6; }
+  .top-bar { position: sticky; top: 0; z-index: 60; background: var(--bg);
+             border-bottom: 1px solid var(--border);
+             margin: -24px -24px 24px; padding: 14px 24px;
+             display: flex; align-items: center; gap: 16px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; }
+  .logo-box { width: 28px; height: 28px; border-radius: 6px;
+              background: linear-gradient(135deg, #00373d, #00b8a9); }
+  .top-bar nav { flex: 1; display: flex; gap: 6px; justify-content: center; }
+  .top-bar .tab { color: var(--muted); padding: 6px 12px; border-radius: 6px;
+                  text-decoration: none; font-size: 13px; font-weight: 600;
+                  border: 1px solid transparent; }
+  .top-bar .tab:hover { color: var(--text); }
+  .top-bar .tab.active { color: var(--blue); background: rgba(0,184,169,0.08);
+                         border-color: var(--blue); }
+
+  .glossary { max-width: 880px; margin: 0 auto; }
+  .glossary > h1 { font-size: 22px; margin: 0 0 6px; }
+  .glossary > .lede { color: var(--muted); margin-bottom: 24px; font-size: 14px; }
+  .section { background: var(--card); border: 1px solid var(--border);
+             border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+  .section h2 { font-size: 16px; margin: 0 0 12px; color: var(--blue); }
+  dl { margin: 0; }
+  dt { font-weight: 700; margin-top: 14px; font-size: 14px; }
+  dt:first-child { margin-top: 0; }
+  dd { margin: 4px 0 0 0; color: var(--text); font-size: 13px; }
+  dd .muted { color: var(--muted); }
+  code { background: rgba(0,184,169,0.10); color: var(--blue);
+         padding: 1px 5px; border-radius: 3px; font-size: 12px;
+         font-family: ui-monospace, Menlo, monospace; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand"><span class="logo-box"></span> Scalable Capital</div>
+  <nav>
+    <a class="tab" href="/app/index.html">Portfolio</a>
+    <a class="tab" href="/app/analytics.html">Analytics</a>
+    <a class="tab" href="/app/orders.html">📋 Orders</a>
+    <a class="tab" href="/app/dividends.html">💰 Dividends</a>
+    <a class="tab" href="/app/ledger.html">📒 Ledger</a>
+    <a class="tab" href="/app/wealth.html">🏦 Wealth</a>
+    <a class="tab active" href="/app/glossary.html">📖 Glossary</a>
+    <a class="tab" href="/app/settings.html">⚙ Settings</a>
+  </nav>
+  <div></div>
+</div>
+
+<div class="glossary">
+  <h1>Glossary</h1>
+  <p class="lede">Terms you'll see across this dashboard, what they mean, and how Scalable Capital uses them specifically.</p>
+
+  <div class="section">
+    <h2>Account &amp; products</h2>
+    <dl>
+      <dt>Broker</dt>
+      <dd>Scalable's self-directed brokerage. You pick your own ETFs and stocks, place orders, and run savings plans. Cash sits at the chosen <em>custodian bank</em>.</dd>
+
+      <dt>Wealth (Roboadvisor)</dt>
+      <dd>Scalable's managed portfolio service. You pick a risk profile and Scalable rebalances a basket of ETFs/Gold/Bonds for you. <code>portfolioType</code> values include <code>WORLD_GOLD</code>, etc. Each Wealth portfolio has its own valuation and recurring deposit setup.</dd>
+
+      <dt>Custodian bank</dt>
+      <dd>Where your securities and cash legally live. For Broker the only value we've seen is <code>SCALABLE</code> (which uses Baader Bank under the hood). For Wealth, observed: <code>FRANZ</code> (Franz Wirtschaftsdienste — the custodian Scalable uses for managed portfolios).</dd>
+
+      <dt>Portfolio ID</dt>
+      <dd>The opaque identifier (e.g. <code>w1XCh5X45Vb3M8St1Ka3UJ</code>) Scalable's GraphQL backend uses for every portfolio-scoped call. Each user can have multiple — typically one Broker and 1+ Wealth.</dd>
+
+      <dt>Person ID / User ID</dt>
+      <dd>Your account's top-level identifier (e.g. <code>ue221C9HcPtn6LScZ7c5bm</code>). Threaded into every GraphQL call as the <code>account(id:)</code> root.</dd>
+    </dl>
+  </div>
+
+  <div class="section">
+    <h2>Risk &amp; portfolio metrics (Wealth)</h2>
+    <dl>
+      <dt>Risk category</dt>
+      <dd>Plain-English label of the Wealth portfolio's risk profile (e.g. <em>World Classic Gold 90</em>). The trailing number is the equity allocation target, in %.</dd>
+
+      <dt>Risk level</dt>
+      <dd>A numeric VaR-like score Scalable uses internally (e.g. 1310 for the 90/10 mix). Higher = more volatile.</dd>
+
+      <dt>Funded</dt>
+      <dd>Boolean — whether the Wealth portfolio has received its initial deposit. A <code>funded: false</code> portfolio is set up but empty.</dd>
+
+      <dt>Invested</dt>
+      <dd>Boolean — whether the Wealth portfolio is currently active. <code>invested: false</code> typically means the user cancelled it; the portfolio object stays around but the valuation is zero.</dd>
+    </dl>
+  </div>
+
+  <div class="section">
+    <h2>Order lifecycle (Broker)</h2>
+    <dl>
+      <dt>PENDING</dt>
+      <dd>Order accepted by Scalable's matching engine but not yet executed (price not reached, market closed, etc.).</dd>
+
+      <dt>PARTIAL_FILLED</dt>
+      <dd>Part of the quantity got executed, the rest is still waiting.</dd>
+
+      <dt>FILLED</dt>
+      <dd>Order fully executed but not yet settled at the custodian.</dd>
+
+      <dt>SETTLED</dt>
+      <dd>Cash and security ownership have fully exchanged at the custodian bank. Usually T+2 for ETFs.</dd>
+
+      <dt>CONFIRMED</dt>
+      <dd>Terminal state for an executed and settled order.</dd>
+
+      <dt>CANCELLED / CANCEL_REQUESTED</dt>
+      <dd>Order pulled before execution (by the user or by Scalable).</dd>
+
+      <dt>EXPIRED</dt>
+      <dd>Limit order that didn't fill within its validity window.</dd>
+
+      <dt>REJECTED</dt>
+      <dd>Order rejected upfront (e.g. insufficient cash, restricted security).</dd>
+    </dl>
+  </div>
+
+  <div class="section">
+    <h2>Cash transactions (Ledger)</h2>
+    <dl>
+      <dt>DEPOSIT</dt>
+      <dd>Money coming INTO your Scalable cash account — bank transfer, savings plan execution, etc.</dd>
+
+      <dt>WITHDRAWAL</dt>
+      <dd>Money going OUT to your reference bank account.</dd>
+
+      <dt>DISTRIBUTION</dt>
+      <dd>Cash payment from a security — dividend (e.g. Sabra Health Care REIT distributions) or coupon. The Dividends page is just this type filtered.</dd>
+
+      <dt>INTEREST</dt>
+      <dd>Interest paid on your idle cash balance, by Scalable.</dd>
+
+      <dt>TAX</dt>
+      <dd>Tax withheld on a distribution at source (German <em>Kapitalertragsteuer</em>, solidarity surcharge, foreign source taxes).</dd>
+
+      <dt>TAX_RETURN</dt>
+      <dd>Refund or reversal of previously withheld tax. Annual reconciliation flows show up here.</dd>
+
+      <dt>FEE</dt>
+      <dd>Trading or service fee charged by Scalable (PRIME subscription, single-trade fee, real-time data, etc.).</dd>
+    </dl>
+  </div>
+
+  <div class="section">
+    <h2>Performance &amp; analytics</h2>
+    <dl>
+      <dt>Time-weighted return (TWR)</dt>
+      <dd>Measures the pure investment return, neutral to your deposit/withdrawal timing. Comparable across portfolios with different cashflow patterns. Scalable returns this per timeframe (ONE_WEEK, ONE_MONTH, SIX_MONTHS, etc.) in <code>valuation.timeWeightedReturnByTimeframe</code>.</dd>
+
+      <dt>Simple absolute return</dt>
+      <dd>Plain € P&amp;L over the same window. Easier to read than TWR but ignores cashflow timing.</dd>
+
+      <dt>XIRR (internal rate of return)</dt>
+      <dd>Annualised return rate that DOES account for the timing of each cashflow. Best single number to compare "my actual euro return" against a benchmark. Not provided directly by Scalable — computed locally from the cash transactions.</dd>
+
+      <dt>Concentration</dt>
+      <dd>How much of the portfolio sits in the top N holdings. Top-1 &gt; 50% or top-5 &gt; 70% are typical warning thresholds.</dd>
+
+      <dt>FIFO price (cost basis)</dt>
+      <dd>The historical price at which you bought each share, in First-In-First-Out order. Shown per position as <code>position.fifoPrice</code>. Used to compute unrealised gain/loss vs current price.</dd>
+
+      <dt>Quote tick</dt>
+      <dd>Last-known bid/ask/mid for a security. Scalable exposes them per ISIN with timestamps + isOutdated flag. The realtime stream pushes new ticks during market hours.</dd>
+    </dl>
+  </div>
+
+  <div class="section">
+    <h2>Identifiers</h2>
+    <dl>
+      <dt>ISIN</dt>
+      <dd>12-character International Securities Identification Number (e.g. <code>IE000SRQBBT6</code>). The universal key Scalable uses for every security.</dd>
+
+      <dt>WKN</dt>
+      <dd>Wertpapierkennnummer — the legacy German 6-character security ID. Still printed by Scalable for convenience; ISIN is the authoritative key.</dd>
+
+      <dt>Venue</dt>
+      <dd>Where the order is routed. Common values: <code>XETR</code> (Xetra), <code>MUNC</code> (Munich), <code>SCSI</code> (Scalable's internal SI), <code>XVES</code>, <code>SEIX</code>, <code>gettex</code>, <code>LSX</code>.</dd>
+    </dl>
+  </div>
+</div>
+
+</body>
+</html>

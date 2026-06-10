@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scalable Capital — Dividends</title>
+<!-- ⚠️ UI STRINGS MUST BE ENGLISH. See ../CLAUDE.md HARD RULES. -->
+<style>
+  :root {
+    --bg: #0f1419; --card: #1a1f2e; --border: #2a3142;
+    --text: #e8eef5; --muted: #7a8599;
+    --green: #4ade80; --red: #f87171; --amber: #fbbf24; --blue: #00b8a9;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+         background: var(--bg); color: var(--text); margin: 0; padding: 24px;
+         font-variant-numeric: tabular-nums; }
+  .top-bar { position: sticky; top: 0; z-index: 60; background: var(--bg);
+             border-bottom: 1px solid var(--border);
+             margin: -24px -24px 24px; padding: 14px 24px;
+             display: flex; align-items: center; gap: 16px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; }
+  .logo-box { width: 28px; height: 28px; border-radius: 6px;
+              background: linear-gradient(135deg, #00373d, #00b8a9); }
+  .top-bar nav { flex: 1; display: flex; gap: 6px; justify-content: center; }
+  .top-bar .tab { color: var(--muted); padding: 6px 12px; border-radius: 6px;
+                  text-decoration: none; font-size: 13px; font-weight: 600;
+                  border: 1px solid transparent; }
+  .top-bar .tab:hover { color: var(--text); }
+  .top-bar .tab.active { color: var(--blue); background: rgba(0,184,169,0.08);
+                         border-color: var(--blue); }
+  .btn { background: var(--card); color: var(--text); border: 1px solid var(--border);
+         padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+         font-weight: 600; }
+  .btn-primary { background: var(--blue); color: #06292c; border-color: var(--blue); }
+
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .card { background: var(--card); border: 1px solid var(--border);
+          border-radius: 12px; padding: 20px; }
+  .card .label { color: var(--muted); font-size: 11px; text-transform: uppercase;
+                 letter-spacing: 0.8px; font-weight: 600; }
+  .card .value { font-size: 26px; font-weight: 700; margin-top: 4px; color: var(--green); }
+  .card .sub { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+  h2 { font-size: 18px; margin: 32px 0 12px; }
+
+  .chart-wrap { background: var(--card); border: 1px solid var(--border);
+                border-radius: 12px; padding: 22px; margin-bottom: 24px; }
+  .chart-wrap svg { width: 100%; height: 280px; display: block; }
+  .chart-wrap text { fill: var(--muted); font-size: 11px;
+                     font-family: inherit; font-variant-numeric: tabular-nums; }
+  .chart-wrap .bar { fill: var(--blue); transition: opacity 0.15s; }
+  .chart-wrap .bar:hover { opacity: 0.85; }
+  .chart-wrap .bar-label { fill: var(--text); font-size: 12px; font-weight: 600; }
+  .chart-wrap .axis-line { stroke: var(--border); stroke-width: 1; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+          border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--border);
+           font-size: 13px; }
+  th:first-child, td:first-child,
+  th:nth-child(2), td:nth-child(2),
+  th:nth-child(3), td:nth-child(3) { text-align: left; }
+  th { background: rgba(122,133,153,0.08); font-weight: 600; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; }
+  tr:last-child td { border-bottom: none; }
+  .amount-pos { color: var(--green); }
+
+  .staleness { font-size: 11px; padding: 2px 8px; border-radius: 10px;
+               font-weight: 600; background: rgba(122,133,153,0.18); color: var(--muted); }
+  .staleness.fresh { background: rgba(74,222,128,0.18); color: var(--green); }
+  .staleness.warn  { background: rgba(251,191,36,0.18); color: var(--amber); }
+  .staleness.stale { background: rgba(248,113,113,0.18); color: var(--red); }
+
+  .empty { background: var(--card); border: 1px solid var(--border);
+           border-radius: 12px; padding: 36px; text-align: center; color: var(--muted); }
+  .btn { background: var(--card); color: var(--text); border: 1px solid var(--border);
+         padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+         font-weight: 600; text-decoration: none; display: inline-block; }
+  .btn:hover { border-color: var(--blue); }
+  .forecast {
+    background: rgba(0,184,169,0.06); border: 1px solid var(--blue);
+    border-radius: 12px; padding: 18px 22px; margin-bottom: 24px;
+  }
+  .forecast .label {
+    color: var(--blue); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.8px; font-weight: 600; margin-bottom: 6px;
+  }
+  .forecast .value { font-size: 22px; font-weight: 700; color: var(--blue); }
+  .forecast .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand"><span class="logo-box"></span> Scalable Capital</div>
+  <nav>
+    <a class="tab" href="/app/index.html">Portfolio</a>
+    <a class="tab" href="/app/analytics.html">Analytics</a>
+    <a class="tab" href="/app/orders.html">📋 Orders</a>
+    <a class="tab active" href="/app/dividends.html">💰 Dividends</a>
+    <a class="tab" href="/app/ledger.html">📒 Ledger</a>
+    <a class="tab" href="/app/wealth.html">🏦 Wealth</a>
+    <a class="tab" href="/app/glossary.html">📖 Glossary</a>
+    <a class="tab" href="/app/settings.html">⚙ Settings</a>
+  </nav>
+  <div class="actions">
+    <span id="staleness" class="staleness">never updated</span>
+    <button id="update-btn" class="btn btn-primary">⟳ Update Now</button>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">Total received</div>
+    <div class="value" id="kpi-total">—</div>
+    <div class="sub">All-time distributions (in window)</div>
+  </div>
+  <div class="card">
+    <div class="label">This year</div>
+    <div class="value" id="kpi-ytd">—</div>
+    <div class="sub" id="kpi-ytd-year">YTD</div>
+  </div>
+  <div class="card">
+    <div class="label">Payments</div>
+    <div class="value" id="kpi-count" style="color: var(--text);">—</div>
+    <div class="sub" id="kpi-securities">— securities</div>
+  </div>
+  <div class="card">
+    <div class="label">Avg / payment</div>
+    <div class="value" id="kpi-avg" style="color: var(--text);">—</div>
+    <div class="sub">arithmetic mean</div>
+  </div>
+</div>
+
+<div class="forecast" id="forecast-box" style="display: none;">
+  <div class="label">Forward dividend forecast (next 12 months)</div>
+  <div class="value" id="forecast-value">—</div>
+  <div class="sub" id="forecast-sub">based on the last 12 months of distributions</div>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+  <h2 style="margin: 0;">By year</h2>
+  <a class="btn" href="/export/dividends.csv" download>↓ Export CSV</a>
+</div>
+<div class="chart-wrap">
+  <svg id="year-chart" viewBox="0 0 600 280" preserveAspectRatio="none"></svg>
+</div>
+
+<h2>By security</h2>
+<table id="by-security-table">
+  <thead><tr>
+    <th>Security</th>
+    <th>ISIN</th>
+    <th>Payments</th>
+    <th>Last payment</th>
+    <th>Total received</th>
+  </tr></thead>
+  <tbody>
+    <tr><td colspan="5" style="text-align:center; color: var(--muted);">
+      Click <em>Update Now</em> to load distributions.
+    </td></tr>
+  </tbody>
+</table>
+
+<h2 style="margin-top: 32px;">All distributions</h2>
+<table id="all-table">
+  <thead><tr>
+    <th>Date</th>
+    <th>Security</th>
+    <th>ISIN</th>
+    <th>Description</th>
+    <th>Amount</th>
+  </tr></thead>
+  <tbody>
+    <tr><td colspan="5" style="text-align:center; color: var(--muted);">—</td></tr>
+  </tbody>
+</table>
+
+<script>
+  const fmtMoney = (n, currency = "EUR") => {
+    if (n == null || isNaN(n)) return "—";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency", currency,
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).format(n);
+  };
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-GB",
+      { year: "numeric", month: "short", day: "2-digit" });
+  };
+  const on = (id, evt, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(evt, fn);
+  };
+  async function getJSON(url) {
+    const res = await fetch(url);
+    return res.ok ? res.json() : null;
+  }
+  async function postJSON(url, body = {}) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+  }
+  function setStaleness(ts) {
+    const el = document.getElementById("staleness");
+    if (!ts) { el.textContent = "never updated"; el.className = "staleness"; return; }
+    const d = new Date(ts.replace(" ", "T") + "Z");
+    const ageMin = (Date.now() - d.getTime()) / 60000;
+    let cls = "fresh"; let label = `${Math.round(ageMin)}m ago`;
+    if (ageMin > 60)  { cls = "warn";  label = `${Math.round(ageMin / 60)}h ago`; }
+    if (ageMin > 1440) { cls = "stale"; label = `${Math.round(ageMin / 1440)}d ago`; }
+    el.textContent = `Updated ${label}`;
+    el.className = "staleness " + cls;
+  }
+
+  // ─── load ──────────────────────────────────────────────────────────
+  async function load() {
+    const progress = await getJSON("/progress");
+    setStaleness(progress && progress.last_update);
+
+    const tx = await getJSON("/DATA/transactions.json");
+    const dividends = (tx?.transactions || [])
+      .filter(t => t.type === "CASH_TRANSACTION" && t.cashTransactionType === "DISTRIBUTION")
+      .sort((a, b) => (b.lastEventDateTime || "").localeCompare(a.lastEventDateTime || ""));
+    render(dividends);
+  }
+
+  function render(dividends) {
+    // KPIs
+    const total = dividends.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const thisYear = new Date().getFullYear();
+    const ytd = dividends.filter(t => (t.lastEventDateTime || "").startsWith(String(thisYear)))
+                          .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const securities = new Set(dividends.map(t => t.relatedIsin).filter(Boolean));
+    const avg = dividends.length ? total / dividends.length : 0;
+
+    document.getElementById("kpi-total").textContent = fmtMoney(total);
+    document.getElementById("kpi-ytd").textContent = fmtMoney(ytd);
+    document.getElementById("kpi-ytd-year").textContent = `Year ${thisYear}`;
+    document.getElementById("kpi-count").textContent = String(dividends.length);
+    document.getElementById("kpi-securities").textContent =
+      `${securities.size} ${securities.size === 1 ? "security" : "securities"}`;
+    document.getElementById("kpi-avg").textContent = fmtMoney(avg);
+
+    // By-year chart
+    const byYear = {};
+    for (const t of dividends) {
+      const year = (t.lastEventDateTime || "").slice(0, 4) || "—";
+      byYear[year] = (byYear[year] || 0) + (Number(t.amount) || 0);
+    }
+    renderYearChart(byYear);
+
+    // Forward dividend forecast — last 12 months of distributions extrapolated.
+    // Heuristic: if you received X € of distributions in the last 365 days,
+    // assume you'll receive ~X € in the next 365. Naive but useful for budgeting.
+    const now = new Date();
+    const oneYearAgo = new Date(now);
+    oneYearAgo.setFullYear(now.getFullYear() - 1);
+    const past12Months = dividends.filter(t => {
+      const d = new Date(t.lastEventDateTime);
+      return !isNaN(d.getTime()) && d >= oneYearAgo && d <= now;
+    });
+    const forecastTotal = past12Months.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const forecastBox = document.getElementById("forecast-box");
+    if (past12Months.length > 0) {
+      forecastBox.style.display = "block";
+      document.getElementById("forecast-value").textContent = fmtMoney(forecastTotal);
+      const distinctSecurities = new Set(past12Months.map(t => t.relatedIsin).filter(Boolean)).size;
+      document.getElementById("forecast-sub").textContent =
+        `Based on ${past12Months.length} payment${past12Months.length === 1 ? "" : "s"}` +
+        ` across ${distinctSecurities} securit${distinctSecurities === 1 ? "y" : "ies"} in the last 365 days.` +
+        ` Assumes payouts continue at the same rate — does NOT account for position changes, dividend cuts, or new holdings.`;
+    } else {
+      forecastBox.style.display = "none";
+    }
+
+    // By-security table
+    const bySecurity = {};
+    for (const t of dividends) {
+      const isin = t.relatedIsin || "—";
+      const key = isin;
+      if (!bySecurity[key]) {
+        bySecurity[key] = {
+          isin, name: t.description || "—",
+          count: 0, total: 0, last: t.lastEventDateTime || "",
+        };
+      }
+      bySecurity[key].count += 1;
+      bySecurity[key].total += Number(t.amount) || 0;
+      if ((t.lastEventDateTime || "") > bySecurity[key].last) {
+        bySecurity[key].last = t.lastEventDateTime;
+      }
+    }
+    const secRows = Object.values(bySecurity).sort((a, b) => b.total - a.total);
+    const secTbody = document.querySelector("#by-security-table tbody");
+    secTbody.innerHTML = "";
+    if (!secRows.length) {
+      secTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--muted);">
+        No distributions yet.</td></tr>`;
+    } else {
+      for (const r of secRows) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${escapeHtml(r.name)}</td>
+          <td><code style="color: var(--muted); font-size: 12px;">${escapeHtml(r.isin)}</code></td>
+          <td>${r.count}</td>
+          <td>${fmtDate(r.last)}</td>
+          <td class="amount-pos">${fmtMoney(r.total)}</td>
+        `;
+        secTbody.appendChild(tr);
+      }
+    }
+
+    // All-distributions table
+    const allTbody = document.querySelector("#all-table tbody");
+    allTbody.innerHTML = "";
+    if (!dividends.length) {
+      allTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--muted);">
+        No distributions yet.</td></tr>`;
+    } else {
+      for (const t of dividends) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${fmtDate(t.lastEventDateTime)}</td>
+          <td>${escapeHtml(t.description || "—")}</td>
+          <td><code style="color: var(--muted); font-size: 12px;">${escapeHtml(t.relatedIsin || "—")}</code></td>
+          <td style="color: var(--muted);">Distribution</td>
+          <td class="amount-pos">${fmtMoney(t.amount, t.currency || "EUR")}</td>
+        `;
+        allTbody.appendChild(tr);
+      }
+    }
+  }
+
+  function renderYearChart(byYear) {
+    const svg = document.getElementById("year-chart");
+    svg.innerHTML = "";
+    const years = Object.keys(byYear).sort();
+    if (!years.length) {
+      svg.innerHTML = `<text x="300" y="140" text-anchor="middle">No data</text>`;
+      return;
+    }
+    const values = years.map(y => byYear[y]);
+    const maxV = Math.max(...values, 1);
+    const W = 600, H = 280;
+    const M = { top: 20, right: 20, bottom: 40, left: 60 };
+    const innerW = W - M.left - M.right;
+    const innerH = H - M.top - M.bottom;
+    const barW = innerW / years.length * 0.65;
+    const gap = innerW / years.length * 0.35;
+
+    // Y axis baseline
+    svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${M.top + innerH}" x2="${M.left + innerW}" y2="${M.top + innerH}"/>`;
+    // Y axis ticks (4)
+    for (let i = 0; i <= 4; i++) {
+      const y = M.top + innerH - (innerH * i / 4);
+      const val = maxV * i / 4;
+      svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${y}" x2="${M.left + innerW}" y2="${y}" stroke-dasharray="2,3" opacity="0.4"/>`;
+      svg.innerHTML += `<text x="${M.left - 8}" y="${y + 4}" text-anchor="end">${fmtMoney(val)}</text>`;
+    }
+
+    // Bars + labels
+    years.forEach((year, i) => {
+      const v = byYear[year];
+      const h = v / maxV * innerH;
+      const x = M.left + (innerW / years.length) * i + gap / 2;
+      const y = M.top + innerH - h;
+      svg.innerHTML += `<rect class="bar" x="${x}" y="${y}" width="${barW}" height="${h}" rx="4">
+        <title>${year}: ${fmtMoney(v)}</title>
+      </rect>`;
+      svg.innerHTML += `<text class="bar-label" x="${x + barW / 2}" y="${y - 6}" text-anchor="middle">${fmtMoney(v)}</text>`;
+      svg.innerHTML += `<text x="${x + barW / 2}" y="${M.top + innerH + 18}" text-anchor="middle">${year}</text>`;
+    });
+  }
+
+  async function triggerUpdate() {
+    const btn = document.getElementById("update-btn");
+    if (btn) btn.disabled = true;
+    const res = await postJSON("/update");
+    if (btn) btn.disabled = false;
+    if (res.status === "ok") await load();
+    else alert("Update failed: " + res.status);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    on("update-btn", "click", triggerUpdate);
+    load();
+  });
+</script>
+
+</body>
+</html>

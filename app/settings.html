@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scalable Capital — Settings</title>
+<!--
+  ⚠️  UI STRINGS MUST BE ENGLISH. No Spanish.
+  See ../CLAUDE.md "HARD RULES" + user memory feedback_sc_ui_english.md.
+-->
+
+<style>
+  :root {
+    --bg: #0f1419;
+    --card: #1a1f2e;
+    --border: #2a3142;
+    --text: #e8eef5;
+    --muted: #7a8599;
+    --green: #4ade80;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --blue: #00b8a9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    background: var(--bg); color: var(--text);
+    margin: 0; padding: 24px; line-height: 1.5; font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .top-bar {
+    position: sticky; top: 0; z-index: 60;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    margin: -24px -24px 24px;
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-weight: 700; letter-spacing: 0.2px;
+  }
+  .logo-box {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: linear-gradient(135deg, #00373d, #00b8a9);
+    display: inline-block;
+  }
+  .top-bar nav { flex: 1; display: flex; gap: 6px; justify-content: center; }
+  .top-bar .tab {
+    color: var(--muted); padding: 6px 12px; border-radius: 6px;
+    text-decoration: none; font-size: 13px; font-weight: 600;
+    border: 1px solid transparent;
+  }
+  .top-bar .tab:hover { color: var(--text); }
+  .top-bar .tab.active {
+    color: var(--blue);
+    background: rgba(0, 184, 169, 0.08);
+    border-color: var(--blue);
+  }
+
+  .settings-grid {
+    display: grid; grid-template-columns: 220px 1fr; gap: 20px;
+    align-items: start; max-width: 1080px;
+  }
+  @media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
+
+  .settings-side {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 8px; position: sticky; top: 80px;
+  }
+  .settings-side a {
+    display: block; color: var(--muted); padding: 9px 14px; font-size: 13px;
+    border-radius: 8px; text-decoration: none; font-weight: 500; margin-bottom: 2px;
+  }
+  .settings-side a:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .settings-side a.active {
+    color: var(--text); background: rgba(0,184,169,0.08);
+    border-left: 2px solid var(--blue); padding-left: 12px;
+  }
+
+  .settings-section {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px; margin-bottom: 14px;
+  }
+  .settings-section h3 { font-size: 15px; margin: 0 0 4px; }
+  .settings-section .help { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+
+  .form-row {
+    display: grid; grid-template-columns: 180px 1fr; gap: 14px;
+    align-items: center; margin-bottom: 12px;
+  }
+  @media (max-width: 700px) { .form-row { grid-template-columns: 1fr; } }
+  .form-row label { color: var(--muted); font-size: 13px; }
+  .form-row input {
+    padding: 8px 12px; background: var(--bg);
+    border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; font-size: 14px; width: 100%;
+  }
+  .form-row input:focus { outline: none; border-color: var(--blue); }
+
+  .btn {
+    padding: 8px 14px; background: var(--blue); color: #06292c; border: none;
+    border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--text); border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { border-color: var(--blue); }
+  .btn.danger {
+    background: rgba(248,113,113,0.10); color: var(--red);
+    border: 1px solid var(--red);
+  }
+  .btn.danger:hover { background: rgba(248,113,113,0.20); }
+
+  .kv { display: grid; grid-template-columns: 200px 1fr; gap: 12px; margin: 8px 0; }
+  .kv .k { color: var(--muted); font-size: 12px; text-transform: uppercase;
+           letter-spacing: 0.5px; font-weight: 600; }
+  .kv .v { color: var(--text); font-size: 14px; word-break: break-all; }
+  .kv .v.muted { color: var(--muted); }
+
+  .status-msg {
+    font-size: 12px; margin-left: 12px; color: var(--muted);
+    display: inline-block;
+  }
+  .status-msg.ok { color: var(--green); }
+  .status-msg.err { color: var(--red); }
+
+  #toast {
+    position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+    background: var(--card); border: 1px solid var(--border);
+    border-top: 3px solid var(--blue);
+    padding: 14px 22px; border-radius: 0 0 10px 10px;
+    display: none; z-index: 90; min-width: 320px; text-align: center;
+  }
+  #toast.active { display: block; }
+  #toast.ok  { border-top-color: var(--green); }
+  #toast.err { border-top-color: var(--red); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand"><span class="logo-box"></span> Scalable Capital</div>
+  <nav>
+    <a class="tab" href="/app/index.html">Portfolio</a>
+    <a class="tab" href="/app/analytics.html">Analytics</a>
+    <a class="tab" href="/app/orders.html">📋 Orders</a>
+    <a class="tab" href="/app/dividends.html">💰 Dividends</a>
+    <a class="tab" href="/app/ledger.html">📒 Ledger</a>
+    <a class="tab" href="/app/wealth.html">🏦 Wealth</a>
+    <a class="tab" href="/app/glossary.html">📖 Glossary</a>
+    <a class="tab active" href="/app/settings.html">⚙ Settings</a>
+  </nav>
+  <div></div>
+</div>
+
+<div class="settings-grid">
+  <div class="settings-side">
+    <a href="#account" class="active">👤 Account</a>
+    <a href="#session">🔐 Session</a>
+    <a href="#data">💾 Data</a>
+    <a href="#about">ℹ️ About</a>
+  </div>
+
+  <div>
+    <!-- Account -->
+    <div class="settings-section" id="account">
+      <h3>👤 Scalable Capital account</h3>
+      <p class="help">Register your account here, or switch to a different one. Login uses email + password + push approval on your phone — same flow as Scalable's website.</p>
+
+      <div id="acc-summary" style="display: none; margin-bottom: 18px;">
+        <div class="kv"><div class="k">Email</div><div class="v" id="acc-email">—</div></div>
+        <div class="kv"><div class="k">User ID</div><div class="v" id="acc-userid">—</div></div>
+        <div class="kv"><div class="k">Broker portfolios</div><div class="v" id="acc-broker">—</div></div>
+        <div class="kv"><div class="k">Wealth portfolios</div><div class="v" id="acc-wealth">—</div></div>
+        <div style="margin-top: 14px;">
+          <button id="logout-btn" class="btn danger">Log out and delete credentials</button>
+        </div>
+      </div>
+
+      <h4 style="font-size: 13px; color: var(--muted); margin: 18px 0 10px;
+                 text-transform: uppercase; letter-spacing: 0.5px;"
+          id="login-heading">Log in to Scalable</h4>
+      <form id="login-form" autocomplete="on">
+        <div class="form-row">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" placeholder="email@example.com"
+                 autocomplete="username" required>
+        </div>
+        <div class="form-row">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" placeholder="•••••••••••"
+                 autocomplete="current-password" required>
+        </div>
+        <div style="margin-top: 14px;">
+          <button id="login-btn" class="btn" type="submit">Log in &amp; approve push</button>
+          <span id="login-status" class="status-msg"></span>
+        </div>
+      </form>
+      <p class="help" style="margin-top: 14px;">
+        Your password is sent only to this local server, used once, and not stored.
+        What IS stored: the session cookies Scalable returns
+        (at <code>~/.sc-api/profiles/&lt;email&gt;/cookies.txt</code>, mode 0600).
+      </p>
+    </div>
+
+    <!-- Session -->
+    <div class="settings-section" id="session">
+      <h3>🔐 Session</h3>
+      <p class="help">Scalable's session cookies are HttpOnly. When they expire, just log in again above — one push approval and everything else carries over.</p>
+      <button id="check-session-btn" class="btn ghost">Test current session</button>
+      <span id="session-status" class="status-msg"></span>
+    </div>
+
+    <!-- Data -->
+    <div class="settings-section" id="data">
+      <h3>💾 Local data</h3>
+      <p class="help">Downloaded JSONs (inventory, transactions, wealth, etc.) live in <code>DATA/</code>. Deleting them does NOT clear your cookies — it just forces a re-fetch on the next update.</p>
+      <button id="clear-data-btn" class="btn ghost">Delete downloaded JSONs</button>
+      <span id="clear-status" class="status-msg"></span>
+    </div>
+
+    <!-- About -->
+    <div class="settings-section" id="about">
+      <h3>ℹ️ About</h3>
+      <div class="kv"><div class="k">sc-api version</div><div class="v muted" id="about-sc-version">checking…</div></div>
+      <div class="kv"><div class="k">Endpoint</div><div class="v muted">https://de.scalable.capital/cockpit/graphql</div></div>
+      <div class="kv"><div class="k">Auth</div><div class="v muted">Auth0 OAuth + push 2FA</div></div>
+      <p class="help" style="margin-top: 14px;">
+        Inspired by <a href="https://github.com/ffischbach/unofficial-scalable-capital-api" style="color: var(--blue);">ffischbach/unofficial-scalable-capital-api</a>
+        and the Trade Republic + GBM México dashboard pattern.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div id="toast"><span id="toast-msg">…</span></div>
+
+<script>
+  function toast(message, kind = "") {
+    const t = document.getElementById("toast");
+    t.className = "active " + kind;
+    document.getElementById("toast-msg").textContent = message;
+    if (kind === "ok") setTimeout(() => t.classList.remove("active"), 2500);
+  }
+  function setStatus(id, text, kind = "") {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = "status-msg " + (kind || "");
+  }
+  const on = (id, evt, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(evt, fn);
+  };
+  async function getJSON(url) {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return res.json();
+  }
+  async function postJSON(url, body = {}) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+
+  async function refreshAccountSummary() {
+    const status = await getJSON("/setup_status");
+    const summary = document.getElementById("acc-summary");
+    const loginHeading = document.getElementById("login-heading");
+    if (status && status.configured) {
+      summary.style.display = "block";
+      document.getElementById("acc-email").textContent = status.email || "—";
+      document.getElementById("acc-userid").textContent = status.user_id || "—";
+      document.getElementById("acc-broker").textContent =
+        status.portfolio_ids ? `${status.portfolio_ids.length} configured` : "—";
+      // wealth count: pull from DATA/wealth.json
+      const wealth = await getJSON("/DATA/wealth.json");
+      document.getElementById("acc-wealth").textContent =
+        Array.isArray(wealth) ? `${wealth.length} (${wealth.filter(w => w.invested !== false).length} active)` : "—";
+      loginHeading.textContent = "Switch account / Re-login";
+    } else {
+      summary.style.display = "none";
+      loginHeading.textContent = "Log in to Scalable";
+    }
+  }
+
+  async function submitLogin(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    if (!email || !password) {
+      setStatus("login-status", "Email and password required", "err");
+      return;
+    }
+    const btn = document.getElementById("login-btn");
+    btn.disabled = true;
+    setStatus("login-status", "📱 Approve the push on your phone — this can take up to 2 min…");
+    toast("📱 Approve the push notification in the Scalable app");
+    try {
+      const res = await postJSON("/setup", { email, password });
+      if (res.status === "ok") {
+        setStatus("login-status", "✓ Logged in", "ok");
+        document.getElementById("login-password").value = "";
+        toast("Logged in — data fetched", "ok");
+        await refreshAccountSummary();
+      } else {
+        const messages = {
+          bad_credentials: "Wrong email or password",
+          push_denied: "You denied the push on your phone",
+          push_timeout: "Push wasn't approved within 2 min",
+          auth_failed: "Login failed",
+          discovery_failed: "Login succeeded but discovery failed",
+        };
+        const msg = messages[res.status] || `Error: ${res.status}`;
+        setStatus("login-status", msg, "err");
+        toast(msg, "err");
+        console.error(res);
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function logout() {
+    if (!confirm("Log out and delete cookies + local profile? You'll need to log in again with email + password + push.")) return;
+    const res = await postJSON("/logout");
+    if (res && res.status === "ok") {
+      toast("Logged out", "ok");
+      await refreshAccountSummary();
+    } else {
+      toast("Logout failed", "err");
+    }
+  }
+
+  async function checkSession() {
+    setStatus("session-status", "Testing…");
+    const res = await postJSON("/check_session");
+    if (res && res.status === "ok") {
+      setStatus("session-status", `✓ OK (${res.detail || ""})`, "ok");
+    } else {
+      setStatus("session-status", `✗ ${res.status} — log in again above`, "err");
+    }
+  }
+
+  async function clearData() {
+    if (!confirm("Delete all downloaded JSONs? (does not affect cookies)")) return;
+    const res = await postJSON("/reset");
+    if (res && res.status === "ok") {
+      setStatus("clear-status", "✓ DATA/ cleared", "ok");
+      toast("Local data cleared", "ok");
+    } else {
+      setStatus("clear-status", "✗ failed", "err");
+    }
+  }
+
+  async function loadAbout() {
+    const res = await getJSON("/version");
+    if (res && res.sc_api) {
+      document.getElementById("about-sc-version").textContent = res.sc_api;
+    }
+  }
+
+  // Sidebar active tracking
+  function trackSidebar() {
+    const sections = ["account", "session", "data", "about"];
+    function onScroll() {
+      let active = sections[0];
+      for (const id of sections) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top < 200) active = id;
+      }
+      document.querySelectorAll(".settings-side a").forEach(a => {
+        a.classList.toggle("active", a.getAttribute("href") === "#" + active);
+      });
+    }
+    window.addEventListener("scroll", onScroll);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    on("login-form", "submit", submitLogin);
+    on("logout-btn", "click", logout);
+    on("check-session-btn", "click", checkSession);
+    on("clear-data-btn", "click", clearData);
+    refreshAccountSummary();
+    loadAbout();
+    trackSidebar();
+  });
+</script>
+
+</body>
+</html>
