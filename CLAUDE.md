@@ -80,18 +80,22 @@ Where SC genuinely differs (and divergence IS justified):
   use as ground-truth during development. The dashboard exposes its own
   CSV export anyway for consistency with TR/GBM.
 
-## Page plan (mirrors TR + GBM)
+## Page plan (mirrors TR + GBM — tab order matches TR exactly)
 
-1. **Portafolio** — holdings, allocation, totals (Broker + Wealth combined,
+1. **Portfolio** — holdings, allocation, totals (Broker + Wealth combined,
    per-product badge so user can distinguish)
-2. **Análisis** — XIRR, time-weighted return, concentration warnings, net
+2. **Analytics** — XIRR, time-weighted return, concentration warnings, net
    worth line, ring chart, dividends bar
-3. **Órdenes** — order history, status, venue
-4. **Dividendos** — dividend events, forward dividends, bars by year
-5. **Libro Diario** — full cash ledger (deposits, withdrawals, interest)
-6. **Glosario** — term reference (port verbatim from GBM/TR glossary where
-   concepts overlap)
-7. **Configuración** — profile, days-back ranges, session reset
+3. **📋 Orders** — order history, status, venue
+4. **💰 Dividends** — dividend events, forward dividends, bars by year
+5. **📒 Ledger** — full cash ledger (deposits, withdrawals, interest)
+6. **🏦 Wealth** — roboadvisor portfolio detail: TWR over time + Portfolio
+   value vs capital invested (deposit-step overlay), asset class breakdown,
+   ETF allocations, wealth-only transactions
+7. **📖 Glossary** — term reference (port verbatim from GBM/TR glossary
+   where concepts overlap)
+8. **⚙ Settings** — credentials save (no auth call), data wipe, session
+   reset, version info
 
 ## Design system
 
@@ -190,7 +194,31 @@ PROJECT_DIR/
 └── session.json              ← cookies, mode 0600
 ```
 
-## Status (2026-06-06)
+## Settings page — credentials, not auth
 
-🚧 **Scaffold only.** Blocked on `sc-api` Phase 0 + Phase 1. UI bootstrap
-will follow the TR Dashboard template verbatim once data is reachable.
+UNLIKE the first scaffold draft: Settings has a **"Save credentials"**
+button that just persists email+password to `~/.sc-api/profiles/<email>/
+credentials.json` (mode 0600). It does NOT trigger login.
+
+Push approval happens **lazily on Update Now**: when fetch detects stale
+cookies, it reads stored credentials and triggers Scalable's push 2FA.
+User approves on phone, fetch continues. This matches TR/GBM.
+
+Four sections on Settings: 👤 Account · 🔐 Session · 💾 Data · ℹ️ About.
+
+## Status (2026-06-11) — shipped
+
+✅ **All 8 pages live with real data.** Working against Carlos's account
+(€2,360.82 Broker + €5,674.80 Wealth "Avoid poverty" + €0 cancelled
+"For The Beach" = €8,035.62 total). Implemented:
+
+- Programmatic Auth0 login + push 2FA approval (no Chrome required)
+- 22+ verbatim GraphQL operations against `/cockpit/graphql`
+- Auto-relogin on stale cookies via stored credentials
+- Wealth detail: TWR + value-vs-capital with deposit overlay + range pills
+- CSV export endpoints for orders/ledger/dividends/holdings/wealth
+- UTC timestamps everywhere (no more "120m ago" CEST drift bug)
+- Canonical Update Now (toast + try/catch/finally) on every page
+
+Still pending (BACKLOG): WebSocket realtime quotes, scheduled
+auto-update daemon, benchmark replay in Analytics.
