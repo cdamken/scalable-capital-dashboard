@@ -146,6 +146,11 @@
     <div class="value pos" id="kpi-distributions">—</div>
     <div class="sub" id="kpi-distrib-count">— received</div>
   </div>
+  <div class="card" title="Forward 12-month dividend ÷ FIFO cost basis. Unlike market yield (÷ current price), this is the income you earn per euro you actually paid. Parity with the TR dashboard.">
+    <div class="label">Yield on cost</div>
+    <div class="value" id="kpi-yoc" style="color: var(--blue);">—</div>
+    <div class="sub" id="kpi-yoc-sub">forward 12m ÷ cost basis</div>
+  </div>
 </div>
 
 <h2>Time-weighted return (Broker)</h2>
@@ -318,7 +323,10 @@
       const qty = (pos.filled || 0) + (pos.pending || 0) + (pos.blocked || 0);
       const tick = sec.quoteTick || {};
       const value = tick.midPrice != null ? tick.midPrice * qty : 0;
-      return { name: sec.name || sec.isin || "—", isin: sec.isin, value };
+      // FIFO cost basis (what you paid) — fifoPrice is per-unit, from the
+      // PositionFragment. Used for yield-on-cost below.
+      const cost = pos.fifoPrice != null ? pos.fifoPrice * qty : 0;
+      return { name: sec.name || sec.isin || "—", isin: sec.isin, value, cost };
     }).filter(h => h.value > 0);
 
     const securitiesValue = holdings.reduce((s, h) => s + h.value, 0);
@@ -380,6 +388,34 @@
     document.getElementById("kpi-distributions").textContent = fmtMoney(totalDistributions);
     document.getElementById("kpi-distrib-count").textContent =
       `${distCount} payment${distCount === 1 ? "" : "s"}`;
+
+    // ─── Yield on cost ────────────────────────────────────────────────
+    // forward 12-month dividend ÷ FIFO cost basis. Same metric the TR
+    // dashboard shows. Forward dividend = trailing distributions scaled
+    // to a 365-day window (needs ≥90 days of history to avoid noise).
+    const yocEl = document.getElementById("kpi-yoc");
+    const yocSub = document.getElementById("kpi-yoc-sub");
+    const costBasis = holdings.reduce((s, h) => s + (h.cost || 0), 0);
+    const distDates = all
+      .filter(t => t.cashTransactionType === "DISTRIBUTION")
+      .map(t => new Date(t.lastEventDateTime))
+      .filter(d => !isNaN(d.getTime()))
+      .sort((a, b) => a - b);
+    if (costBasis > 0 && distDates.length) {
+      const spanDays = Math.max(
+        1, Math.round((distDates[distDates.length - 1] - distDates[0]) / 86400000));
+      if (spanDays >= 90) {
+        const fwd = spanDays < 365 ? totalDistributions * (365 / spanDays) : totalDistributions;
+        yocEl.textContent = (fwd / costBasis * 100).toFixed(2) + "%";
+        yocSub.textContent = `${fmtMoney(fwd)} fwd ÷ ${fmtMoney(costBasis)} cost`;
+      } else {
+        yocEl.textContent = "—";
+        yocSub.textContent = `only ${spanDays}d of dividend history (need ≥90d)`;
+      }
+    } else {
+      yocEl.textContent = "—";
+      yocSub.textContent = costBasis > 0 ? "no distributions yet" : "no cost basis";
+    }
 
     // ─── TWR table ────────────────────────────────────────────────────
     const tbody = document.getElementById("twr-tbody");
