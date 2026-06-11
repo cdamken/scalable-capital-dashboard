@@ -182,7 +182,7 @@
 
       <h4 style="font-size: 13px; color: var(--muted); margin: 18px 0 10px;
                  text-transform: uppercase; letter-spacing: 0.5px;"
-          id="login-heading">Log in to Scalable</h4>
+          id="login-heading">Save Scalable credentials</h4>
       <form id="login-form" autocomplete="on">
         <div class="form-row">
           <label for="login-email">Email</label>
@@ -195,14 +195,15 @@
                  autocomplete="current-password" required>
         </div>
         <div style="margin-top: 14px;">
-          <button id="login-btn" class="btn" type="submit">Log in &amp; approve push</button>
+          <button id="login-btn" class="btn" type="submit">Save credentials</button>
           <span id="login-status" class="status-msg"></span>
         </div>
       </form>
       <p class="help" style="margin-top: 14px;">
-        Your password is sent only to this local server, used once, and not stored.
-        What IS stored: the session cookies Scalable returns
-        (at <code>~/.sc-api/profiles/&lt;email&gt;/cookies.txt</code>, mode 0600).
+        Credentials are stored locally at
+        <code>~/.sc-api/profiles/&lt;email&gt;/credentials.json</code> (mode 0600).
+        No login or push approval happens here — that triggers automatically
+        the next time you click <em>Update Now</em> on any page.
       </p>
     </div>
 
@@ -283,10 +284,10 @@
       const wealth = await getJSON("/DATA/wealth.json");
       document.getElementById("acc-wealth").textContent =
         Array.isArray(wealth) ? `${wealth.length} (${wealth.filter(w => w.invested !== false).length} active)` : "—";
-      loginHeading.textContent = "Switch account / Re-login";
+      loginHeading.textContent = "Switch account / re-save credentials";
     } else {
       summary.style.display = "none";
-      loginHeading.textContent = "Log in to Scalable";
+      loginHeading.textContent = "Save Scalable credentials";
     }
   }
 
@@ -300,24 +301,18 @@
     }
     const btn = document.getElementById("login-btn");
     btn.disabled = true;
-    setStatus("login-status", "📱 Approve the push on your phone — this can take up to 2 min…");
-    toast("📱 Approve the push notification in the Scalable app");
+    setStatus("login-status", "Saving…");
     try {
-      const res = await postJSON("/setup", { email, password });
+      // Just persist email + password locally. No network call to Scalable,
+      // no push approval here. That happens on the next "Update Now".
+      const res = await postJSON("/save_credentials", { email, password });
       if (res.status === "ok") {
-        setStatus("login-status", "✓ Logged in", "ok");
+        setStatus("login-status", "✓ Credentials saved", "ok");
         document.getElementById("login-password").value = "";
-        toast("Logged in — data fetched", "ok");
+        toast("Credentials saved — click Update Now on any page to trigger push approval.", "ok");
         await refreshAccountSummary();
       } else {
-        const messages = {
-          bad_credentials: "Wrong email or password",
-          push_denied: "You denied the push on your phone",
-          push_timeout: "Push wasn't approved within 2 min",
-          auth_failed: "Login failed",
-          discovery_failed: "Login succeeded but discovery failed",
-        };
-        const msg = messages[res.status] || `Error: ${res.status}`;
+        const msg = res.detail || res.error || `Error: ${res.status}`;
         setStatus("login-status", msg, "err");
         toast(msg, "err");
         console.error(res);

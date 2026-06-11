@@ -89,9 +89,23 @@
   .legend-row .name { color: var(--text); }
   .legend-row .pct { color: var(--muted); }
   .legend-row .val { color: var(--text); text-align: right; min-width: 80px; }
+
+  #toast {
+    position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+    background: var(--card); border: 1px solid var(--border);
+    border-top: 3px solid var(--blue);
+    padding: 14px 22px; border-radius: 0 0 10px 10px;
+    display: none; z-index: 90; min-width: 320px; text-align: center;
+    font-size: 13px;
+  }
+  #toast.active { display: block; }
+  #toast.ok  { border-top-color: var(--green); }
+  #toast.err { border-top-color: var(--red); }
 </style>
 </head>
 <body>
+
+<div id="toast"><span id="toast-msg">…</span></div>
 
 <div class="top-bar">
   <div class="brand"><span class="logo-box"></span> Scalable Capital</div>
@@ -221,7 +235,10 @@
   function setStaleness(ts) {
     const el = document.getElementById("staleness");
     if (!ts) { el.textContent = "never updated"; el.className = "staleness"; return; }
-    const d = new Date(ts.replace(" ", "T") + "Z");
+    // Accept both new ISO-with-Z and legacy local-time formats.
+    // ts examples: "2026-06-10T11:33:18Z" (new) or "2026-06-10 11:33:18" (legacy local)
+    const iso = ts.includes("T") ? ts : ts.replace(" ", "T") + "Z";
+    const d = new Date(iso);
     const ageMin = (Date.now() - d.getTime()) / 60000;
     let cls = "fresh"; let label = `${Math.round(ageMin)}m ago`;
     if (ageMin > 60)  { cls = "warn";  label = `${Math.round(ageMin / 60)}h ago`; }
@@ -577,10 +594,27 @@
   async function triggerUpdate() {
     const btn = document.getElementById("update-btn");
     if (btn) btn.disabled = true;
-    const res = await postJSON("/update");
-    if (btn) btn.disabled = false;
-    if (res.status === "ok") await load();
-    else alert("Update failed: " + res.status);
+    const t = document.getElementById("toast");
+    const tMsg = document.getElementById("toast-msg");
+    if (t && tMsg) { tMsg.textContent = "📱 Fetching… if push appears on your phone, tap Approve. This can take up to 2 min."; t.className = "active"; }
+    try {
+      const res = await postJSON("/update");
+      if (res.status === "ok") {
+        if (t && tMsg) { tMsg.textContent = "Updated ✓"; t.className = "active ok"; setTimeout(() => t.classList.remove("active"), 2500); }
+        await load();
+      } else if (res.status === "auth_required" || res.status === "mfa_required") {
+        if (t && tMsg) { tMsg.textContent = "Push approval timed out — try Update Now again and tap Approve faster."; t.className = "active err"; }
+        console.error(res);
+      } else {
+        if (t && tMsg) { tMsg.textContent = "Update failed: " + res.status; t.className = "active err"; }
+        console.error(res);
+      }
+    } catch (e) {
+      if (t && tMsg) { tMsg.textContent = "Update failed: " + String(e); t.className = "active err"; }
+      console.error(e);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   }
 
   document.addEventListener("DOMContentLoaded", () => {

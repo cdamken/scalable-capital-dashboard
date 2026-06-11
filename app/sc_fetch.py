@@ -76,9 +76,9 @@ def main(argv: list[str] | None = None) -> int:
         creds = profiles.load_credentials(prof)
         if not creds:
             _log("No stored credentials — can't auto-relogin. "
-                 "Go to Settings → log in again.")
+                 "Go to Settings → Save credentials.")
             return False
-        _log("📱 Cookies expired — triggering push approval, please approve on your phone...")
+        _log("📱 Triggering push approval, please approve on your phone...")
         try:
             from sc_api import auth as _auth, cookies as _cookies_mod
             result = _auth.login_flow(
@@ -89,7 +89,9 @@ def main(argv: list[str] | None = None) -> int:
             cookies_dict = {c.name: c.value for c in result.cookies
                             if c.domain and "scalable.capital" in c.domain}
             _cookies_mod.save_to_file(cookies_dict, prof.cookies_file)
-            _log(f"Relogin OK — {len(cookies_dict)} cookies refreshed.")
+            # Also persist person_id (first-login bootstrap or refresh)
+            profiles.update_identity(prof, person_id=result.user_id)
+            _log(f"Relogin OK — {len(cookies_dict)} cookies, person_id={result.user_id[:12]}...")
             return True
         except Exception as e:
             _log(f"Auto-relogin failed: {type(e).__name__}: {e}")
@@ -204,8 +206,10 @@ def main(argv: list[str] | None = None) -> int:
             except ApiError as e:
                 _log(f"savings fetch failed (non-fatal): {e}")
 
+        # Write in UTC ISO format so the JS doesn't have to guess timezone.
+        # Append explicit `Z` — frontend `new Date(ts)` parses it correctly.
         LAST_UPDATE_FILE.write_text(
-            time.strftime("%Y-%m-%d %H:%M:%S\n"),
+            time.strftime("%Y-%m-%dT%H:%M:%SZ\n", time.gmtime()),
             encoding="utf-8",
         )
         _log("OK")

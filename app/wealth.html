@@ -109,6 +109,30 @@
   .info-row .kv .k { color: var(--muted); font-size: 11px;
                      text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
   .info-row .kv .v { color: var(--text); font-size: 14px; margin-top: 2px; }
+
+  /* Time range pills above the TWR chart */
+  .range-pills { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .range-pills button {
+    background: var(--card); color: var(--muted); border: 1px solid var(--border);
+    padding: 5px 12px; border-radius: 14px; cursor: pointer;
+    font-size: 12px; font-weight: 600;
+  }
+  .range-pills button:hover { color: var(--text); border-color: var(--muted); }
+  .range-pills button.active {
+    background: rgba(0,184,169,0.10); color: var(--blue); border-color: var(--blue);
+  }
+  .range-label { color: var(--muted); font-size: 11px; margin-left: 4px; }
+
+  #toast {
+    position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+    background: var(--card); border: 1px solid var(--border);
+    border-top: 3px solid var(--blue);
+    padding: 14px 22px; border-radius: 0 0 10px 10px;
+    display: none; z-index: 90; min-width: 320px; text-align: center;
+  }
+  #toast.active { display: block; }
+  #toast.ok  { border-top-color: var(--green); }
+  #toast.err { border-top-color: var(--red); }
 </style>
 </head>
 <body>
@@ -140,6 +164,8 @@
      background: var(--card); border: 1px solid var(--border); border-radius: 12px;">
   No wealth detail yet. Click <em>Update Now</em> to fetch it.
 </div>
+
+<div id="toast"><span id="toast-msg">…</span></div>
 
 <div id="detail-view" style="display: none;">
   <div class="info-row" id="info-row"></div>
@@ -179,16 +205,41 @@
       </div>
     </div>
     <div>
-      <h2>TWR over time</h2>
+      <h2>Time-weighted return</h2>
       <div class="chart-wrap">
-        <svg id="twr-chart" viewBox="0 0 600 280" preserveAspectRatio="none" style="width:100%; height: 240px; display:block;"></svg>
+        <div class="range-pills" id="range-pills">
+          <button data-range="1W">1W</button>
+          <button data-range="1M">1M</button>
+          <button data-range="3M">3M</button>
+          <button data-range="6M">6M</button>
+          <button data-range="1Y">1Y</button>
+          <button data-range="ALL" class="active">All</button>
+          <span class="range-label" id="range-info">—</span>
+        </div>
+        <svg id="twr-chart" viewBox="0 0 600 280" preserveAspectRatio="none" style="width:100%; height: 280px; display:block;"></svg>
       </div>
     </div>
   </div>
 
-  <h2>Valuation history</h2>
+  <h2>Portfolio value vs capital invested</h2>
   <div class="chart-wrap">
-    <svg id="valuation-chart" viewBox="0 0 800 320" preserveAspectRatio="none" style="width:100%; height: 320px; display: block;"></svg>
+    <div style="display: flex; gap: 16px; margin-bottom: 10px; font-size: 12px; align-items: center;">
+      <span style="display: inline-flex; align-items: center; gap: 6px;">
+        <span style="width: 14px; height: 3px; background: var(--blue); display: inline-block;"></span>
+        <span style="color: var(--text);">Portfolio value</span>
+      </span>
+      <span style="display: inline-flex; align-items: center; gap: 6px;">
+        <span style="width: 14px; height: 0; border-top: 2px dashed var(--muted); display: inline-block;"></span>
+        <span style="color: var(--text);">Capital invested (deposits − withdrawals, cumulative)</span>
+      </span>
+      <span class="range-label" id="value-gap" style="margin-left: auto;">—</span>
+    </div>
+    <svg id="value-chart" viewBox="0 0 800 320" preserveAspectRatio="none" style="width:100%; height: 320px; display:block;"></svg>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 10px;">
+      The gap between the two lines is your <strong>real return</strong> — what the
+      portfolio earned beyond what you put in. Steps in the dashed line are
+      deposits/withdrawals; the solid line moves with the market.
+    </p>
   </div>
 
   <h2>Underlying ETFs</h2>
@@ -240,6 +291,15 @@
     const el = document.getElementById(id);
     if (el) el.addEventListener(evt, fn);
   };
+  function toast(message, kind = "") {
+    const t = document.getElementById("toast");
+    if (!t) return;
+    t.className = "active " + kind;
+    const msg = document.getElementById("toast-msg");
+    if (msg) msg.textContent = message;
+    if (kind === "ok") setTimeout(() => t.classList.remove("active"), 2500);
+  }
+
   async function getJSON(url) {
     const res = await fetch(url);
     return res.ok ? res.json() : null;
@@ -260,7 +320,10 @@
   function setStaleness(ts) {
     const el = document.getElementById("staleness");
     if (!ts) { el.textContent = "never updated"; el.className = "staleness"; return; }
-    const d = new Date(ts.replace(" ", "T") + "Z");
+    // Accept both new ISO-with-Z and legacy local-time formats.
+    // ts examples: "2026-06-10T11:33:18Z" (new) or "2026-06-10 11:33:18" (legacy local)
+    const iso = ts.includes("T") ? ts : ts.replace(" ", "T") + "Z";
+    const d = new Date(iso);
     const ageMin = (Date.now() - d.getTime()) / 60000;
     let cls = "fresh"; let label = `${Math.round(ageMin)}m ago`;
     if (ageMin > 60)  { cls = "warn";  label = `${Math.round(ageMin / 60)}h ago`; }
@@ -329,7 +392,7 @@
     renderKPIs();
     renderAllocation();
     renderTwrChart();
-    renderValuationChart();
+    renderValueChart();
     renderEtfTable();
     renderTxTable();
   }
@@ -435,20 +498,183 @@
     legend.innerHTML = legendHtml;
   }
 
-  // ─── TWR + valuation line charts ────────────────────────────────────
+  // Build cumulative capital-invested timeline from wealth transactions.
+  // DEPOSIT / TRANSFER_IN / PAYMENT (+) = inflow; WITHDRAWAL / TRANSFER_OUT /
+  // PAYMENT (−) = outflow. FEE / DISTRIBUTION etc. are internal — ignored.
+  function buildCapitalSeries(tx) {
+    const events = [];
+    for (const t of (tx || [])) {
+      const date = t.bookingDate;
+      if (!date) continue;
+      const amt = Number(t.amount) || 0;
+      let delta = 0;
+      if (t.type === "DEPOSIT" || t.type === "TRANSFER_IN" ||
+          (t.type === "PAYMENT" && amt > 0)) {
+        delta = Math.abs(amt);
+      } else if (t.type === "WITHDRAWAL" || t.type === "TRANSFER_OUT" ||
+                 (t.type === "PAYMENT" && amt < 0)) {
+        delta = -Math.abs(amt);
+      } else {
+        continue;
+      }
+      events.push({ date, delta });
+    }
+    events.sort((a, b) => a.date.localeCompare(b.date));
+    let running = 0;
+    return events.map(e => { running += e.delta; return { date: e.date, value: running }; });
+  }
+
+  // For each valuation date, find the cumulative capital invested up to that date
+  // (forward-fill from the capital series).
+  function alignCapitalToValuationDates(capitalSeries, valuationDates) {
+    const result = [];
+    let cursor = 0;
+    let running = 0;
+    for (const date of valuationDates) {
+      while (cursor < capitalSeries.length && capitalSeries[cursor].date <= date) {
+        running = capitalSeries[cursor].value;
+        cursor += 1;
+      }
+      result.push({ date, value: running });
+    }
+    return result;
+  }
+
+  // ─── TWR line chart with time-range selector ─────────────────────────
+  let twrRange = "ALL";
   function renderTwrChart() {
-    renderLineChart("twr-chart", (current.timeWeightedReturnHistory || []),
+    let series = current.timeWeightedReturnHistory || [];
+    // Filter by selected range. TWR is cumulative since inception, so a
+    // "1M" view shows the cumulative TWR for the last 30 days of points
+    // (still cumulative, not subtracted) — same as how TR shows it.
+    if (twrRange !== "ALL" && series.length) {
+      const last = new Date(series[series.length - 1].date);
+      const cutoff = new Date(last);
+      const RANGES = { "1W": 7, "1M": 30, "3M": 91, "6M": 183, "1Y": 365 };
+      const days = RANGES[twrRange];
+      if (days) {
+        cutoff.setDate(cutoff.getDate() - days);
+        series = series.filter(s => new Date(s.date) >= cutoff);
+      }
+    }
+    // Info label: change in TWR over the visible window
+    const infoEl = document.getElementById("range-info");
+    if (series.length > 1) {
+      const first = series[0].timeWeightedReturn;
+      const last = series[series.length - 1].timeWeightedReturn;
+      const delta = last - first;
+      const sign = delta >= 0 ? "+" : "";
+      const cls = delta >= 0 ? "pos" : "neg";
+      infoEl.innerHTML = `Change in window: <span style="color: var(--${delta>=0?'green':'red'});">${sign}${(delta*100).toFixed(2)}pp</span> · ${series.length} pts`;
+    } else {
+      infoEl.textContent = `${series.length} point(s)`;
+    }
+    renderLineChart("twr-chart", series,
       (item) => item.timeWeightedReturn,
       (v) => fmtPct(v),
       "var(--blue)",
       { isPct: true });
   }
-  function renderValuationChart() {
-    renderLineChart("valuation-chart", (current.valuationHistory || []),
-      (item) => item.valuation,
-      (v) => fmtMoney(v),
-      "var(--blue)",
-      { isPct: false });
+
+  // ─── Value vs Capital chart (two lines) ──────────────────────────────
+  function renderValueChart() {
+    let valSeries = current.valuationHistory || [];
+    if (twrRange !== "ALL" && valSeries.length) {
+      const last = new Date(valSeries[valSeries.length - 1].date);
+      const cutoff = new Date(last);
+      const RANGES = { "1W": 7, "1M": 30, "3M": 91, "6M": 183, "1Y": 365 };
+      const days = RANGES[twrRange];
+      if (days) {
+        cutoff.setDate(cutoff.getDate() - days);
+        valSeries = valSeries.filter(s => new Date(s.date) >= cutoff);
+      }
+    }
+    const capitalSeries = buildCapitalSeries(current.transactions || []);
+    const capAligned = alignCapitalToValuationDates(
+      capitalSeries, valSeries.map(v => v.date),
+    );
+
+    // Gap label
+    const gapEl = document.getElementById("value-gap");
+    if (valSeries.length && capAligned.length) {
+      const lastVal = valSeries[valSeries.length - 1].valuation;
+      const lastCap = capAligned[capAligned.length - 1].value;
+      const gap = lastVal - lastCap;
+      const cls = gap >= 0 ? "green" : "red";
+      const sign = gap >= 0 ? "+" : "";
+      const pct = lastCap > 0 ? ` (${sign}${(gap / lastCap * 100).toFixed(2)}%)` : "";
+      gapEl.innerHTML = `Real return: <span style="color: var(--${cls}); font-weight: 700;">${sign}${fmtMoney(gap)}${pct}</span>`;
+    } else {
+      gapEl.textContent = "—";
+    }
+
+    renderTwoLineChart("value-chart", valSeries, capAligned);
+  }
+
+  function renderTwoLineChart(svgId, mainSeries, refSeries) {
+    const svg = document.getElementById(svgId);
+    svg.innerHTML = "";
+    if (!mainSeries || !mainSeries.length) {
+      const W = svg.viewBox.baseVal.width, H = svg.viewBox.baseVal.height;
+      svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--muted)">No data</text>`;
+      return;
+    }
+    const W = svg.viewBox.baseVal.width, H = svg.viewBox.baseVal.height;
+    const M = { top: 14, right: 80, bottom: 30, left: 60 };
+    const innerW = W - M.left - M.right;
+    const innerH = H - M.top - M.bottom;
+
+    const pointsMain = mainSeries.map(s => ({ date: new Date(s.date), value: Number(s.valuation) || 0 }));
+    const pointsRef  = (refSeries || []).map(s => ({ date: new Date(s.date), value: Number(s.value) || 0 }));
+    const allYs = [...pointsMain.map(p => p.value), ...pointsRef.map(p => p.value)];
+    const t0 = pointsMain[0].date.getTime();
+    const t1 = pointsMain[pointsMain.length - 1].date.getTime();
+    let minY = Math.min(0, ...allYs);
+    let maxY = Math.max(...allYs, 1);
+    const xRange = t1 - t0 || 1;
+    const yRange = maxY - minY || 1;
+    const X = (d) => M.left + ((d.getTime() - t0) / xRange) * innerW;
+    const Y = (v) => M.top + innerH - ((v - minY) / yRange) * innerH;
+
+    for (let i = 0; i <= 4; i++) {
+      const y = M.top + innerH - (innerH * i / 4);
+      const val = minY + yRange * i / 4;
+      svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${y}" x2="${M.left + innerW}" y2="${y}" stroke-dasharray="2,3" opacity="0.3"/>`;
+      svg.innerHTML += `<text x="${M.left - 8}" y="${y + 4}" text-anchor="end">${fmtMoney(val)}</text>`;
+    }
+    [t0, t0 + xRange/2, t1].forEach(ts => {
+      const x = M.left + ((ts - t0) / xRange) * innerW;
+      const dStr = new Date(ts).toLocaleDateString("en-GB",
+        { year: "numeric", month: "short", day: "2-digit" });
+      svg.innerHTML += `<text x="${x}" y="${M.top + innerH + 18}" text-anchor="middle">${dStr}</text>`;
+    });
+
+    // Main line (portfolio value) + area fill below
+    let pathMain = "";
+    pointsMain.forEach((p, i) => {
+      const x = X(p.date), y = Y(p.value);
+      pathMain += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
+    });
+    const yBase = Y(minY);
+    svg.innerHTML += `<path d="${pathMain} L ${X(pointsMain[pointsMain.length-1].date)} ${yBase} L ${X(pointsMain[0].date)} ${yBase} Z" fill="var(--blue)" opacity="0.08"/>`;
+    svg.innerHTML += `<path d="${pathMain}" fill="none" stroke="var(--blue)" stroke-width="2"/>`;
+
+    // Reference line (capital invested) — dashed step
+    if (pointsRef.length) {
+      let pathRef = "";
+      pointsRef.forEach((p, i) => {
+        const x = X(p.date), y = Y(p.value);
+        pathRef += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
+      });
+      svg.innerHTML += `<path d="${pathRef}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="6,4"/>`;
+      // Final value label for capital
+      const lastRef = pointsRef[pointsRef.length - 1];
+      svg.innerHTML += `<text x="${X(lastRef.date) + 6}" y="${Y(lastRef.value) + 4}" fill="var(--muted)" style="font-weight:600; font-size: 11px;">${fmtMoney(lastRef.value)}</text>`;
+    }
+    // Final value label for portfolio
+    const lastMain = pointsMain[pointsMain.length - 1];
+    svg.innerHTML += `<circle cx="${X(lastMain.date)}" cy="${Y(lastMain.value)}" r="3.5" fill="var(--blue)"/>`;
+    svg.innerHTML += `<text x="${X(lastMain.date) + 6}" y="${Y(lastMain.value) - 6}" fill="var(--blue)" style="font-weight:600; font-size: 11px;">${fmtMoney(lastMain.value)}</text>`;
   }
   function renderLineChart(svgId, series, getValue, fmtTick, color, opts = {}) {
     const svg = document.getElementById(svgId);
@@ -575,16 +801,39 @@
   async function triggerUpdate() {
     const btn = document.getElementById("update-btn");
     if (btn) btn.disabled = true;
-    const res = await postJSON("/update");
-    if (btn) btn.disabled = false;
-    if (res.status === "ok") {
-      await load();
-    } }
+    toast("📱 Fetching… if push appears on your phone, tap Approve. This can take up to 2 min.");
+    try {
+      const res = await postJSON("/update");
+      if (res.status === "ok") {
+        toast("Updated ✓", "ok");
+        await load();
+      } else if (res.status === "auth_required" || res.status === "mfa_required") {
+        toast("Push approval timed out — try Update Now again and tap Approve faster.", "err");
+        console.error(res);
+      } else {
+        toast(`Update failed: ${res.status}`, "err");
+        console.error(res);
+      }
+    } catch (e) {
+      toast("Update failed: " + String(e), "err");
+      console.error(e);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   }
 
   document.addEventListener("DOMContentLoaded", () => {
     on("update-btn", "click", triggerUpdate);
     on("portfolio-picker", "change", (e) => selectPortfolio(e.target.value));
+    // Range pills
+    document.querySelectorAll("#range-pills button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        twrRange = btn.dataset.range;
+        document.querySelectorAll("#range-pills button").forEach(b =>
+          b.classList.toggle("active", b === btn));
+        if (current) { renderTwrChart(); renderValueChart(); }
+      });
+    });
     load();
   });
 </script>

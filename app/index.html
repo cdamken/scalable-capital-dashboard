@@ -308,7 +308,10 @@
   function setStaleness(ts) {
     const el = document.getElementById("staleness");
     if (!ts) { el.textContent = "never updated"; el.className = "staleness"; return; }
-    const d = new Date(ts.replace(" ", "T") + "Z");
+    // Accept both new ISO-with-Z and legacy local-time formats.
+    // ts examples: "2026-06-10T11:33:18Z" (new) or "2026-06-10 11:33:18" (legacy local)
+    const iso = ts.includes("T") ? ts : ts.replace(" ", "T") + "Z";
+    const d = new Date(iso);
     const ageMin = (Date.now() - d.getTime()) / 60000;
     let cls = "fresh"; let label = `${Math.round(ageMin)}m ago`;
     if (ageMin > 60) { cls = "warn"; label = `${Math.round(ageMin / 60)}h ago`; }
@@ -528,13 +531,27 @@
   }
 
   async function triggerUpdate() {
-    toast("Fetching… (if push approval needed, tap Approve in your Scalable app)");
-    const res = await postJSON("/update");
-    if (res.status === "ok") {
-      toast("Updated ✓", "ok");
-      await render();
-    } }`, "err");
-      console.error(res);
+    const btn = document.getElementById("update-btn");
+    if (btn) btn.disabled = true;
+    // Sticky toast — stays visible the whole 1-2 min in case push approval is needed
+    toast("📱 Fetching… if push appears on your phone, tap Approve. This can take up to 2 min.");
+    try {
+      const res = await postJSON("/update");
+      if (res.status === "ok") {
+        toast("Updated ✓", "ok");
+        await render();
+      } else if (res.status === "auth_required" || res.status === "mfa_required") {
+        toast("Push approval timed out — try Update Now again and tap Approve faster on your phone.", "err");
+        console.error(res);
+      } else {
+        toast(`Update failed: ${res.status}`, "err");
+        console.error(res);
+      }
+    } catch (e) {
+      toast("Update failed: " + String(e), "err");
+      console.error(e);
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
 

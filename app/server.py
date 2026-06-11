@@ -95,6 +95,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/setup":
             return self._handle_setup(body)
+        if path == "/save_credentials":
+            return self._handle_save_credentials(body)
         if path == "/update":
             return self._handle_update(body)
         if path == "/reset":
@@ -386,6 +388,34 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             self._json(200, {"status": "error",
                              "detail": f"{type(e).__name__}: {e}"[:200]})
+
+    def _handle_save_credentials(self, body: dict) -> None:
+        """Just persist email + password to ~/.sc-api/profiles/<email>/.
+
+        Does NOT trigger login or push approval. The next time the user
+        clicks "Update Now", `sc_fetch.py::_auto_relogin` will read these
+        credentials and trigger the push automatically.
+
+        This matches the TR/GBM pattern: save in Settings, login on demand.
+        """
+        email = (body.get("email") or "").strip().lower()
+        password = body.get("password") or ""
+        if not email or not password:
+            self._json(400, {"error": "email and password required"})
+            return
+        try:
+            from sc_api import profiles
+            prof = profiles.create(email)
+            profiles.save_credentials(prof, email, password)
+            profiles.set_active(email)
+            self._json(200, {
+                "status": "ok",
+                "email": email,
+                "next_step": "Click 'Update Now' on any page — push approval will trigger automatically.",
+            })
+        except Exception as e:
+            self._json(500, {"status": "error",
+                             "detail": f"{type(e).__name__}: {e}"})
 
     def _handle_setup(self, body: dict) -> None:
         """Programmatic login from the browser — same flow as
