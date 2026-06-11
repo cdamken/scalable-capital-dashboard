@@ -178,6 +178,14 @@
   </div>
 </div>
 
+<h2>Geographic allocation</h2>
+<div class="chart-wrap">
+  <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;" id="geo-substat">
+    By the country prefix in each ISIN — not by where the company earns its revenue.
+  </p>
+  <svg id="geo-chart" viewBox="0 0 600 280" preserveAspectRatio="none" style="width:100%; height: 240px; display:block;"></svg>
+</div>
+
 <h2>Net capital committed over time</h2>
 <div class="chart-wrap">
   <svg id="capital-chart" viewBox="0 0 800 280" preserveAspectRatio="none" style="width:100%; height: 280px; display: block;"></svg>
@@ -421,6 +429,13 @@
     }
     renderBarChart("dividends-chart", byYear);
 
+    // ─── Geographic allocation (by ISIN domicile) ──────────────────────
+    // Same idea as the TR dashboard: bucket holdings by the 2-letter
+    // ISIN country prefix. Reuses renderBarChart since SC draws its own
+    // SVG bars. Domicile ≠ revenue exposure (an Ireland-domiciled UCITS
+    // ETF holds US stocks) — the substat note says so.
+    renderGeoChart(holdings);
+
     // ─── Net capital line ──────────────────────────────────────────────
     renderCapitalLine(all, currentValue);
   }
@@ -477,6 +492,40 @@
     svgHtml += `<text x="50" y="56" text-anchor="middle" fill="var(--text)" style="font-size: 6.5px; font-weight: 700;">${fmtMoney(total)}</text>`;
     svg.innerHTML = svgHtml;
     legend.innerHTML = legendHtml;
+  }
+
+  // ISIN 2-letter prefix → country name. Ported from the TR dashboard's
+  // geographic-allocation chart (analytics.html). Domicile, not revenue.
+  const ISIN_COUNTRIES = {
+    US: "United States", DE: "Germany", FR: "France", GB: "United Kingdom",
+    IE: "Ireland (UCITS)", LU: "Luxembourg", NL: "Netherlands",
+    ES: "Spain", IT: "Italy", CH: "Switzerland", AT: "Austria",
+    SE: "Sweden", NO: "Norway", DK: "Denmark", FI: "Finland",
+    BE: "Belgium", PT: "Portugal", GR: "Greece", PL: "Poland",
+    JP: "Japan", CA: "Canada", AU: "Australia",
+    HK: "Hong Kong", KR: "South Korea", CN: "China", TW: "Taiwan",
+    IN: "India", BR: "Brazil", MX: "Mexico", IL: "Israel",
+    KY: "Cayman Islands", BM: "Bermuda", VG: "British Virgin Islands",
+    JE: "Jersey", GG: "Guernsey", IM: "Isle of Man",
+  };
+
+  function renderGeoChart(holdings) {
+    const byCountry = {};
+    for (const h of holdings) {
+      const prefix = (h.isin || "").slice(0, 2).toUpperCase();
+      if (!/^[A-Z]{2}$/.test(prefix)) continue;
+      const label = ISIN_COUNTRIES[prefix] || ("Other (" + prefix + ")");
+      byCountry[label] = (byCountry[label] || 0) + (Number(h.value) || 0);
+    }
+    const total = Object.values(byCountry).reduce((s, v) => s + v, 0);
+    const sub = document.getElementById("geo-substat");
+    if (sub) {
+      const n = Object.keys(byCountry).length;
+      sub.textContent = n + " " + (n === 1 ? "country" : "countries") +
+        " · " + fmtMoney(total) +
+        " total — by ISIN domicile, not revenue exposure.";
+    }
+    renderBarChart("geo-chart", byCountry);
   }
 
   function renderBarChart(svgId, byKey) {
