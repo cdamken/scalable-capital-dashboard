@@ -256,8 +256,13 @@ def main(argv: list[str] | None = None) -> int:
             if ident.wealth_portfolios:
                 _write_json(data_dir / "wealth_detail.json",
                             sc_api.wealth.fetch_all_detail(client))
+            # UTC ISO 8601 with Z — must match the happy-path write above
+            # (~line 212). The naive local format here meant the staleness
+            # chip misread the time after an auto-relogin (the "120m ago"
+            # CEST drift bug, supposedly already killed everywhere).
             LAST_UPDATE_FILE.write_text(
-                time.strftime("%Y-%m-%d %H:%M:%S\n"), encoding="utf-8",
+                time.strftime("%Y-%m-%dT%H:%M:%SZ\n", time.gmtime()),
+                encoding="utf-8",
             )
             _log("OK (after auto-relogin)")
             return EXIT_OK
