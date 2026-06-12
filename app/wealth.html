@@ -134,6 +134,8 @@
   #toast.ok  { border-top-color: var(--green); }
   #toast.err { border-top-color: var(--red); }
 </style>
+<script src="vendor/chart.umd.min.js"></script>
+<script src="charts.js"></script>
 </head>
 <body>
 
@@ -216,7 +218,7 @@
           <button data-range="ALL" class="active">All</button>
           <span class="range-label" id="range-info">—</span>
         </div>
-        <svg id="twr-chart" viewBox="0 0 600 280" preserveAspectRatio="none" style="width:100%; height: 280px; display:block;"></svg>
+        <div style="position:relative; height:280px;"><canvas id="twr-chart"></canvas></div>
       </div>
     </div>
   </div>
@@ -234,7 +236,7 @@
       </span>
       <span class="range-label" id="value-gap" style="margin-left: auto;">—</span>
     </div>
-    <svg id="value-chart" viewBox="0 0 800 320" preserveAspectRatio="none" style="width:100%; height: 320px; display:block;"></svg>
+    <div style="position:relative; height:320px;"><canvas id="value-chart"></canvas></div>
     <p style="color: var(--muted); font-size: 12px; margin-top: 10px;">
       The gap between the two lines is your <strong>real return</strong> — what the
       portfolio earned beyond what you put in. Steps in the dashed line are
@@ -634,138 +636,6 @@
     }
 
     renderTwoLineChart("value-chart", valSeries, capAligned);
-  }
-
-  function renderTwoLineChart(svgId, mainSeries, refSeries) {
-    const svg = document.getElementById(svgId);
-    svg.innerHTML = "";
-    if (!mainSeries || !mainSeries.length) {
-      const W = svg.viewBox.baseVal.width, H = svg.viewBox.baseVal.height;
-      svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--muted)">No data</text>`;
-      return;
-    }
-    const W = svg.viewBox.baseVal.width, H = svg.viewBox.baseVal.height;
-    const M = { top: 14, right: 80, bottom: 30, left: 60 };
-    const innerW = W - M.left - M.right;
-    const innerH = H - M.top - M.bottom;
-
-    const pointsMain = mainSeries.map(s => ({ date: new Date(s.date), value: Number(s.valuation) || 0 }));
-    const pointsRef  = (refSeries || []).map(s => ({ date: new Date(s.date), value: Number(s.value) || 0 }));
-    const allYs = [...pointsMain.map(p => p.value), ...pointsRef.map(p => p.value)];
-    const t0 = pointsMain[0].date.getTime();
-    const t1 = pointsMain[pointsMain.length - 1].date.getTime();
-    let minY = Math.min(0, ...allYs);
-    let maxY = Math.max(...allYs, 1);
-    const xRange = t1 - t0 || 1;
-    const yRange = maxY - minY || 1;
-    const X = (d) => M.left + ((d.getTime() - t0) / xRange) * innerW;
-    const Y = (v) => M.top + innerH - ((v - minY) / yRange) * innerH;
-
-    for (let i = 0; i <= 4; i++) {
-      const y = M.top + innerH - (innerH * i / 4);
-      const val = minY + yRange * i / 4;
-      svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${y}" x2="${M.left + innerW}" y2="${y}" stroke-dasharray="2,3" opacity="0.3"/>`;
-      svg.innerHTML += `<text x="${M.left - 8}" y="${y + 4}" text-anchor="end">${fmtMoney(val)}</text>`;
-    }
-    [t0, t0 + xRange/2, t1].forEach(ts => {
-      const x = M.left + ((ts - t0) / xRange) * innerW;
-      const dStr = new Date(ts).toLocaleDateString("en-GB",
-        { year: "numeric", month: "short", day: "2-digit" });
-      svg.innerHTML += `<text x="${x}" y="${M.top + innerH + 18}" text-anchor="middle">${dStr}</text>`;
-    });
-
-    // Main line (portfolio value) + area fill below
-    let pathMain = "";
-    pointsMain.forEach((p, i) => {
-      const x = X(p.date), y = Y(p.value);
-      pathMain += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
-    });
-    const yBase = Y(minY);
-    svg.innerHTML += `<path d="${pathMain} L ${X(pointsMain[pointsMain.length-1].date)} ${yBase} L ${X(pointsMain[0].date)} ${yBase} Z" fill="var(--blue)" opacity="0.08"/>`;
-    svg.innerHTML += `<path d="${pathMain}" fill="none" stroke="var(--blue)" stroke-width="2"/>`;
-
-    // Reference line (capital invested) — dashed step
-    if (pointsRef.length) {
-      let pathRef = "";
-      pointsRef.forEach((p, i) => {
-        const x = X(p.date), y = Y(p.value);
-        pathRef += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
-      });
-      svg.innerHTML += `<path d="${pathRef}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="6,4"/>`;
-      // Final value label for capital
-      const lastRef = pointsRef[pointsRef.length - 1];
-      svg.innerHTML += `<text x="${X(lastRef.date) + 6}" y="${Y(lastRef.value) + 4}" fill="var(--muted)" style="font-weight:600; font-size: 11px;">${fmtMoney(lastRef.value)}</text>`;
-    }
-    // Final value label for portfolio
-    const lastMain = pointsMain[pointsMain.length - 1];
-    svg.innerHTML += `<circle cx="${X(lastMain.date)}" cy="${Y(lastMain.value)}" r="3.5" fill="var(--blue)"/>`;
-    svg.innerHTML += `<text x="${X(lastMain.date) + 6}" y="${Y(lastMain.value) - 6}" fill="var(--blue)" style="font-weight:600; font-size: 11px;">${fmtMoney(lastMain.value)}</text>`;
-  }
-  function renderLineChart(svgId, series, getValue, fmtTick, color, opts = {}) {
-    const svg = document.getElementById(svgId);
-    svg.innerHTML = "";
-    if (!series || !series.length) {
-      const W = svg.viewBox.baseVal.width || 600;
-      const H = svg.viewBox.baseVal.height || 280;
-      svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--muted)">No data</text>`;
-      return;
-    }
-    const W = svg.viewBox.baseVal.width, H = svg.viewBox.baseVal.height;
-    const M = { top: 14, right: 60, bottom: 30, left: 60 };
-    const innerW = W - M.left - M.right;
-    const innerH = H - M.top - M.bottom;
-
-    const points = series.map(s => ({
-      date: new Date(s.date),
-      value: Number(getValue(s)) || 0,
-    })).filter(p => !isNaN(p.date.getTime()));
-    if (!points.length) return;
-    const t0 = points[0].date.getTime();
-    const t1 = points[points.length - 1].date.getTime();
-    const ys = points.map(p => p.value);
-    let minY = Math.min(...ys);
-    let maxY = Math.max(...ys);
-    if (minY === maxY) { minY -= 1; maxY += 1; }
-    if (opts.isPct && minY > 0) minY = 0; // anchor y-axis at 0 for TWR
-    const xRange = t1 - t0 || 1;
-    const yRange = maxY - minY || 1;
-
-    const X = (d) => M.left + ((d.getTime() - t0) / xRange) * innerW;
-    const Y = (v) => M.top + innerH - ((v - minY) / yRange) * innerH;
-
-    // axes + gridlines
-    for (let i = 0; i <= 4; i++) {
-      const y = M.top + innerH - (innerH * i / 4);
-      const val = minY + yRange * i / 4;
-      svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${y}" x2="${M.left + innerW}" y2="${y}" stroke-dasharray="2,3" opacity="0.3"/>`;
-      svg.innerHTML += `<text x="${M.left - 8}" y="${y + 4}" text-anchor="end">${fmtTick(val)}</text>`;
-    }
-    // x-axis dates: first, mid, last
-    [t0, t0 + xRange/2, t1].forEach(ts => {
-      const x = M.left + ((ts - t0) / xRange) * innerW;
-      const dStr = new Date(ts).toLocaleDateString("en-GB",
-        { year: "numeric", month: "short", day: "2-digit" });
-      svg.innerHTML += `<text x="${x}" y="${M.top + innerH + 18}" text-anchor="middle">${dStr}</text>`;
-    });
-    // zero line for TWR
-    if (opts.isPct && minY < 0) {
-      const yZero = Y(0);
-      svg.innerHTML += `<line x1="${M.left}" y1="${yZero}" x2="${M.left + innerW}" y2="${yZero}" stroke="var(--muted)" stroke-width="1" opacity="0.5"/>`;
-    }
-    // line path
-    let path = "";
-    points.forEach((p, i) => {
-      const x = X(p.date), y = Y(p.value);
-      path += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
-    });
-    svg.innerHTML += `<path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>`;
-    // area fill under line
-    const yBaseline = opts.isPct ? Y(0) : Y(minY);
-    svg.innerHTML += `<path d="${path} L ${X(points[points.length-1].date)} ${yBaseline} L ${X(points[0].date)} ${yBaseline} Z" fill="${color}" opacity="0.10"/>`;
-    // final point marker
-    const last = points[points.length - 1];
-    svg.innerHTML += `<circle cx="${X(last.date)}" cy="${Y(last.value)}" r="3.5" fill="${color}"/>`;
-    svg.innerHTML += `<text x="${X(last.date) + 6}" y="${Y(last.value) + 4}" fill="${color}" style="font-weight:600;">${fmtTick(last.value)}</text>`;
   }
 
   // ─── ETF table ──────────────────────────────────────────────────────
