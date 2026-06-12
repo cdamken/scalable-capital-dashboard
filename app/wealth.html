@@ -578,9 +578,14 @@
   }
 
   function renderTwrChart() {
-    const series = sliceTwrByRange(current.timeWeightedReturnHistory, twrRange);
-    // Info label: actual return over the visible window (rebased, matches the
-    // KPI card so the two never disagree).
+    const raw = sliceTwrByRange(current.timeWeightedReturnHistory, twrRange);
+    // Rebase the curve to the window start so the line begins at 0% and its
+    // endpoint equals the Window return / KPI. Plotting raw cumulative TWR
+    // made every range end at the same since-inception figure (e.g. +25%).
+    const base = raw.length ? raw[0].timeWeightedReturn : 0;
+    const series = raw.map(s => ({ date: s.date, twr: (1 + s.timeWeightedReturn) / (1 + base) - 1 }));
+    // Info label: actual return over the visible window (matches the KPI card
+    // and the chart endpoint, so all three never disagree).
     const infoEl = document.getElementById("range-info");
     const winRet = windowedTwr(current.timeWeightedReturnHistory, twrRange);
     if (series.length > 1 && winRet != null) {
@@ -590,7 +595,7 @@
       infoEl.textContent = `${series.length} point(s)`;
     }
     renderLineChart("twr-chart", series,
-      (item) => item.timeWeightedReturn,
+      (item) => item.twr,
       (v) => fmtPct(v),
       "var(--blue)",
       { isPct: true });
