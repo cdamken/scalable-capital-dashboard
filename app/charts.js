@@ -150,9 +150,142 @@
     });
   }
 
+  // Draws the value above each bar (Chart.js has no built-in datalabels).
+  const barValueLabels = {
+    id: 'scBarValueLabels',
+    afterDatasetsDraw: (chart) => {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      if (!meta || meta.hidden) return;
+      ctx.save();
+      ctx.fillStyle = '#e8eef5';
+      ctx.font = '600 12px system-ui';
+      ctx.textAlign = 'center';
+      meta.data.forEach((bar, i) => {
+        const v = chart.data.datasets[0].data[i];
+        if (v == null) return;
+        ctx.fillText(fmtEUR(v), bar.x, bar.y - 8);
+      });
+      ctx.restore();
+    },
+  };
+
+  // ---- Bar chart from a {key: value} map (sorted by key). Money y-axis,
+  // value label above each bar. Signature matches the old SVG helper.
+  function renderBarChart(canvasId, byKey) {
+    const el = freshCanvas(canvasId);
+    if (!el || typeof Chart === 'undefined') return;
+    const keys = Object.keys(byKey || {}).sort();
+    const values = keys.map(k => Number(byKey[k]) || 0);
+    const blue = cssColor('var(--blue)');
+    new Chart(el, {
+      type: 'bar',
+      data: { labels: keys, datasets: [{
+        data: values, borderRadius: 6, maxBarThickness: 120, borderWidth: 0,
+        backgroundColor: (c) => vGradient(c.chart.ctx, c.chart.chartArea, blue, 0.95, 0.45),
+      }] },
+      options: {
+        maintainAspectRatio: false, animation: ANIMATION,
+        layout: { padding: { top: 22 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { ...TOOLTIP, callbacks: { label: (ctx) => ' ' + fmtEUR(ctx.parsed.y) } },
+        },
+        scales: {
+          y: { ...AXIS_BASE, beginAtZero: true,
+               ticks: { ...AXIS_BASE.ticks, callback: (v) => fmtEUR(v) } },
+          x: { ...AXIS_BASE, grid: { display: false },
+               ticks: { ...AXIS_BASE.ticks, maxRotation: 0, autoSkip: false } },
+        },
+      },
+      plugins: [barValueLabels],
+    });
+  }
+
+  // ---- Doughnut with a centered TOTAL. labels/values/colors are parallel.
+  function scDonut(canvasId, labels, values, colors) {
+    const el = freshCanvas(canvasId);
+    if (!el || typeof Chart === 'undefined') return;
+    const total = (values || []).reduce((s, v) => s + (Number(v) || 0), 0);
+    new Chart(el, {
+      type: 'doughnut',
+      data: { labels: labels || [], datasets: [{
+        data: values || [], backgroundColor: colors || [],
+        borderColor: '#0f1419', borderWidth: 2 }] },
+      options: {
+        maintainAspectRatio: false, animation: ANIMATION, cutout: '66%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { ...TOOLTIP, callbacks: { label: (ctx) => ' ' + ctx.label + ': ' +
+            fmtEUR(ctx.parsed) + ' (' + (total ? (ctx.parsed / total * 100).toFixed(1) : 0) + '%)' } },
+        },
+      },
+      plugins: [{
+        id: 'scDonutCenter',
+        afterDraw: (chart) => {
+          const area = chart.chartArea;
+          if (!area) return;
+          const ctx = chart.ctx;
+          const cx = (area.left + area.right) / 2, cy = (area.top + area.bottom) / 2;
+          ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#7a8599'; ctx.font = '600 10px system-ui';
+          ctx.fillText('TOTAL', cx, cy - 9);
+          ctx.fillStyle = '#e8eef5'; ctx.font = '700 15px system-ui';
+          ctx.fillText(fmtEUR(total), cx, cy + 8);
+          ctx.restore();
+        },
+      }],
+    });
+  }
+
+  // ---- Stepped "net capital committed" line + optional dashed reference
+  // (today's market value). series: [{date: Date|string, value: number}].
+  function scStepLine(canvasId, series, refValue) {
+    const el = freshCanvas(canvasId);
+    if (!el || typeof Chart === 'undefined') return;
+    const blue = cssColor('var(--blue)');
+    const green = cssColor('var(--green)', '#4ade80');
+    const labels = (series || []).map(s =>
+      fmtLabelDate(s.date instanceof Date ? s.date.toISOString() : s.date));
+    const data = (series || []).map(s => Number(s.value) || 0);
+    const datasets = [{
+      label: 'Net capital committed', data, borderColor: blue, borderWidth: 2,
+      stepped: true, pointRadius: 0, pointHoverRadius: 4, fill: true,
+      backgroundColor: (c) => vGradient(c.chart.ctx, c.chart.chartArea, blue, 0.18, 0.0),
+    }];
+    if (refValue != null && data.length) {
+      datasets.push({
+        label: 'Market value (today)', data: data.map(() => Number(refValue)),
+        borderColor: green, borderWidth: 1.5, borderDash: [5, 4],
+        pointRadius: 0, pointHoverRadius: 0, fill: false,
+      });
+    }
+    new Chart(el, {
+      type: 'line', data: { labels, datasets },
+      options: {
+        maintainAspectRatio: false, animation: ANIMATION,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: datasets.length > 1, labels: { color: '#e8eef5',
+            font: { size: 12, weight: '500' }, usePointStyle: true, pointStyle: 'rectRounded', padding: 12 } },
+          tooltip: { ...TOOLTIP, callbacks: {
+            label: (ctx) => ' ' + (ctx.dataset.label || '') + ': ' + fmtEUR(ctx.parsed.y) } },
+        },
+        scales: {
+          y: { ...AXIS_BASE, ticks: { ...AXIS_BASE.ticks, callback: (v) => fmtEUR(v) } },
+          x: { ...AXIS_BASE, grid: { display: false },
+               ticks: { ...AXIS_BASE.ticks, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
+        },
+      },
+    });
+  }
+
   // Expose globally (per-page scripts call these by name).
   window.renderLineChart = renderLineChart;
   window.renderTwoLineChart = renderTwoLineChart;
+  window.renderBarChart = renderBarChart;
+  window.scDonut = scDonut;
+  window.scStepLine = scStepLine;
   window.scCssColor = cssColor;
   window.scVGradient = vGradient;
   window.SC_AXIS_BASE = AXIS_BASE;

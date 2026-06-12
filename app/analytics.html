@@ -103,6 +103,7 @@
   #toast.err { border-top-color: var(--red); }
 </style>
 <script src="vendor/chart.umd.min.js"></script>
+<script src="charts.js"></script>
 </head>
 <body>
 
@@ -171,7 +172,7 @@
     <h2>Allocation (Broker holdings)</h2>
     <div class="chart-wrap">
       <div class="ring-chart">
-        <svg id="ring-chart" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+        <div style="position:relative; width:200px; height:200px;"><canvas id="ring-chart"></canvas></div>
         <div class="legend" id="ring-legend"></div>
       </div>
     </div>
@@ -179,7 +180,7 @@
   <div>
     <h2>Dividends per year</h2>
     <div class="chart-wrap">
-      <svg id="dividends-chart" viewBox="0 0 600 280" preserveAspectRatio="none" style="width:100%; height: 240px; display:block;"></svg>
+      <div style="position:relative; height:240px;"><canvas id="dividends-chart"></canvas></div>
     </div>
   </div>
 </div>
@@ -189,12 +190,12 @@
   <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;" id="geo-substat">
     By the country prefix in each ISIN — not by where the company earns its revenue.
   </p>
-  <svg id="geo-chart" viewBox="0 0 600 280" preserveAspectRatio="none" style="width:100%; height: 240px; display:block;"></svg>
+  <div style="position:relative; height:240px;"><canvas id="geo-chart"></canvas></div>
 </div>
 
 <h2>Net capital committed over time</h2>
 <div class="chart-wrap">
-  <svg id="capital-chart" viewBox="0 0 800 280" preserveAspectRatio="none" style="width:100%; height: 280px; display: block;"></svg>
+  <div style="position:relative; height:280px;"><canvas id="capital-chart"></canvas></div>
   <p style="color: var(--muted); font-size: 12px; margin-top: 8px;">
     Cumulative net cashflow committed to Scalable (deposits − withdrawals). Distributions, interest and tax NOT included — those are return ON capital, not capital itself. Dashed line at the right end marks today's portfolio market value.
   </p>
@@ -478,57 +479,29 @@
   }
 
   function renderRingChart(holdings, cashBalance) {
-    const svg = document.getElementById("ring-chart");
     const legend = document.getElementById("ring-legend");
     const items = [...holdings].sort((a, b) => b.value - a.value);
     if (cashBalance > 0) items.push({ name: "Cash", isin: "—", value: cashBalance });
     const total = items.reduce((s, h) => s + h.value, 0);
     if (!total) {
-      svg.innerHTML = `<text x="50" y="50" text-anchor="middle" fill="var(--muted)">No data</text>`;
-      legend.innerHTML = "";
+      if (legend) legend.innerHTML = "";
+      scDonut("ring-chart", [], [], []);
       return;
     }
-
-    let svgHtml = "";
+    const colors = items.map((h, i) => COLORS[i % COLORS.length]);
     let legendHtml = "";
-    let cumulative = 0;
-    const cx = 50, cy = 50, r = 38, ringW = 12;
     items.forEach((h, i) => {
       const pct = h.value / total;
-      const startAngle = cumulative * 2 * Math.PI - Math.PI / 2;
-      cumulative += pct;
-      const endAngle = cumulative * 2 * Math.PI - Math.PI / 2;
-      // Arc path for a ring slice
-      const largeArc = pct > 0.5 ? 1 : 0;
-      const x1 = cx + r * Math.cos(startAngle);
-      const y1 = cy + r * Math.sin(startAngle);
-      const x2 = cx + r * Math.cos(endAngle);
-      const y2 = cy + r * Math.sin(endAngle);
-      const innerR = r - ringW;
-      const x3 = cx + innerR * Math.cos(endAngle);
-      const y3 = cy + innerR * Math.sin(endAngle);
-      const x4 = cx + innerR * Math.cos(startAngle);
-      const y4 = cy + innerR * Math.sin(startAngle);
-      const color = COLORS[i % COLORS.length];
-      svgHtml += `<path class="slice" d="
-        M ${x1} ${y1}
-        A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}
-        L ${x3} ${y3}
-        A ${innerR} ${innerR} 0 ${largeArc} 0 ${x4} ${y4}
-        Z" fill="${color}">
-        <title>${h.name}: ${(pct*100).toFixed(1)}% — ${fmtMoney(h.value)}</title>
-      </path>`;
       legendHtml += `<div class="legend-row">
-        <span class="dot" style="background: ${color};"></span>
+        <span class="dot" style="background: ${colors[i]};"></span>
         <span class="name">${escapeHtml(h.name)}</span>
         <span class="pct">${(pct*100).toFixed(1)}%</span>
         <span class="val">${fmtMoney(h.value)}</span>
       </div>`;
     });
-    svgHtml += `<text x="50" y="48" text-anchor="middle" fill="var(--muted)" style="font-size: 5px;">TOTAL</text>`;
-    svgHtml += `<text x="50" y="56" text-anchor="middle" fill="var(--text)" style="font-size: 6.5px; font-weight: 700;">${fmtMoney(total)}</text>`;
-    svg.innerHTML = svgHtml;
-    legend.innerHTML = legendHtml;
+    if (legend) legend.innerHTML = legendHtml;
+    // Drawing handled by Chart.js (charts.js); legend stays custom HTML.
+    scDonut("ring-chart", items.map(h => h.name), items.map(h => h.value), colors);
   }
 
   // ISIN 2-letter prefix → country name. Ported from the TR dashboard's
@@ -565,48 +538,9 @@
     renderBarChart("geo-chart", byCountry);
   }
 
-  function renderBarChart(svgId, byKey) {
-    const svg = document.getElementById(svgId);
-    svg.innerHTML = "";
-    const keys = Object.keys(byKey).sort();
-    if (!keys.length) {
-      svg.innerHTML = `<text x="300" y="140" text-anchor="middle">No data</text>`;
-      return;
-    }
-    const values = keys.map(k => byKey[k]);
-    const maxV = Math.max(...values, 1);
-    const W = 600, H = 280;
-    const M = { top: 20, right: 20, bottom: 40, left: 60 };
-    const innerW = W - M.left - M.right;
-    const innerH = H - M.top - M.bottom;
-    const barW = innerW / keys.length * 0.65;
-    const gap = innerW / keys.length * 0.35;
-
-    svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${M.top + innerH}" x2="${M.left + innerW}" y2="${M.top + innerH}"/>`;
-    for (let i = 0; i <= 4; i++) {
-      const y = M.top + innerH - (innerH * i / 4);
-      const val = maxV * i / 4;
-      svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${y}" x2="${M.left + innerW}" y2="${y}" stroke-dasharray="2,3" opacity="0.3"/>`;
-      svg.innerHTML += `<text x="${M.left - 8}" y="${y + 4}" text-anchor="end">${fmtMoney(val)}</text>`;
-    }
-    keys.forEach((k, i) => {
-      const v = byKey[k];
-      const h = v / maxV * innerH;
-      const x = M.left + (innerW / keys.length) * i + gap / 2;
-      const y = M.top + innerH - h;
-      svg.innerHTML += `<rect class="bar" x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="var(--blue)">
-        <title>${k}: ${fmtMoney(v)}</title>
-      </rect>`;
-      svg.innerHTML += `<text class="bar-label" x="${x + barW / 2}" y="${y - 6}" text-anchor="middle">${fmtMoney(v)}</text>`;
-      svg.innerHTML += `<text x="${x + barW / 2}" y="${M.top + innerH + 18}" text-anchor="middle">${k}</text>`;
-    });
-  }
 
   function renderCapitalLine(all, currentValue) {
-    const svg = document.getElementById("capital-chart");
-    svg.innerHTML = "";
-
-    // Build cumulative net capital timeline
+    // Build cumulative net capital timeline (changes only at deposit/withdrawal).
     const events = [];
     for (const t of all) {
       if (t.type !== "CASH_TRANSACTION") continue;
@@ -618,63 +552,15 @@
       else if (ct === "WITHDRAWAL") events.push({ date, delta: -Math.abs(amt) });
     }
     if (!events.length) {
-      svg.innerHTML = `<text x="400" y="140" text-anchor="middle">No deposits/withdrawals yet</text>`;
+      scStepLine("capital-chart", [], null);
       return;
     }
     events.sort((a, b) => a.date - b.date);
     let running = 0;
     const series = events.map(e => { running += e.delta; return { date: e.date, value: running }; });
-
-    const W = 800, H = 280;
-    const M = { top: 20, right: 40, bottom: 40, left: 70 };
-    const innerW = W - M.left - M.right;
-    const innerH = H - M.top - M.bottom;
-
-    const t0 = series[0].date.getTime();
-    const t1 = Math.max(series[series.length - 1].date.getTime(), Date.now());
-    const minY = Math.min(0, ...series.map(s => s.value));
-    const maxY = Math.max(series[series.length - 1].value, currentValue, 1);
-    const yRange = maxY - minY || 1;
-    const xRange = t1 - t0 || 1;
-    const X = (d) => M.left + ((d.getTime() - t0) / xRange) * innerW;
-    const Y = (v) => M.top + innerH - ((v - minY) / yRange) * innerH;
-
-    // axes
-    svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${M.top + innerH}" x2="${M.left + innerW}" y2="${M.top + innerH}"/>`;
-    for (let i = 0; i <= 4; i++) {
-      const y = M.top + innerH - (innerH * i / 4);
-      const val = minY + yRange * i / 4;
-      svg.innerHTML += `<line class="axis-line" x1="${M.left}" y1="${y}" x2="${M.left + innerW}" y2="${y}" stroke-dasharray="2,3" opacity="0.3"/>`;
-      svg.innerHTML += `<text x="${M.left - 8}" y="${y + 4}" text-anchor="end">${fmtMoney(val)}</text>`;
-    }
-    // x-axis labels (first, middle, last)
-    const labels = [t0, t0 + xRange / 2, t1];
-    labels.forEach(ts => {
-      const x = M.left + ((ts - t0) / xRange) * innerW;
-      svg.innerHTML += `<text x="${x}" y="${M.top + innerH + 18}" text-anchor="middle">${fmtDate(new Date(ts).toISOString())}</text>`;
-    });
-
-    // step line (capital committed only changes at deposit/withdrawal events)
-    let path = "";
-    series.forEach((s, i) => {
-      const x = X(s.date), y = Y(s.value);
-      if (i === 0) { path += `M ${x} ${y} `; }
-      else {
-        const prev = series[i-1];
-        path += `L ${X(s.date)} ${Y(prev.value)} L ${x} ${y} `;
-      }
-    });
-    // extend line to today at last value
-    const last = series[series.length - 1];
-    path += `L ${X(new Date())} ${Y(last.value)} `;
-
-    svg.innerHTML += `<path d="${path}" fill="none" stroke="var(--blue)" stroke-width="2"/>`;
-
-    // Mark current portfolio value as a dashed line at the right
-    const yCurrent = Y(currentValue);
-    svg.innerHTML += `<line x1="${M.left}" y1="${yCurrent}" x2="${M.left + innerW}" y2="${yCurrent}" stroke="var(--green)" stroke-width="1" stroke-dasharray="4,4" opacity="0.6"/>`;
-    svg.innerHTML += `<circle cx="${X(new Date())}" cy="${yCurrent}" r="4" fill="var(--green)"/>`;
-    svg.innerHTML += `<text x="${M.left + innerW + 4}" y="${yCurrent + 4}" text-anchor="start" fill="var(--green)" style="font-weight:600;">${fmtMoney(currentValue)}</text>`;
+    // Drawing handled by Chart.js (charts.js): stepped net-capital line +
+    // dashed reference at today's market value.
+    scStepLine("capital-chart", series, currentValue);
   }
 
   async function triggerUpdate() {
