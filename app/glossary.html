@@ -175,7 +175,19 @@
       <dd>How much of the portfolio sits in the top N holdings. Top-1 &gt; 50% or top-5 &gt; 70% are typical warning thresholds.</dd>
 
       <dt>FIFO price (cost basis)</dt>
-      <dd>The historical price at which you bought each share, in First-In-First-Out order. Shown per position as <code>position.fifoPrice</code>. Used to compute unrealised gain/loss vs current price.</dd>
+      <dd>The historical price at which you bought each share, in First-In-First-Out order. Shown per position as <code>position.fifoPrice</code>. Used to compute unrealised gain/loss vs current price. This is the same "cost basis" concept TR and GBM use — what you actually paid, before any market movement.</dd>
+
+      <dt>Forward 12-month dividend (projection)</dt>
+      <dd>Naive estimate of dividends over the next 12 months, scaling what you received in the observed window up to 365 days. Requires ≥90 days of distribution history to avoid noise from one-off payments. Feeds the Yield-on-cost KPI on Analytics. (Same definition as TR.)</dd>
+
+      <dt>Yield on cost</dt>
+      <dd><code>Forward 12-mo dividend ÷ FIFO cost basis</code>. The dividend yield you're earning on the money you actually paid for your positions — different from market-yield (which divides by current price). Answers "how much income per euro invested?". (Same definition as TR.)</dd>
+
+      <dt>Benchmark replay</dt>
+      <dd>The dashed MSCI World / S&amp;P 500 / Nasdaq 100 lines on the "Net capital committed vs benchmarks" chart (Analytics). Reconstructed by simulating "what if every euro you deposited had bought the index on the same day instead". Compares your portfolio against a passive index using your actual cashflow timeline, not a flat lump-sum baseline. Indices are EUR UCITS ETFs (IWDA.AS / VUSA.AS / CNDX.AS) so there's no FX noise. (Same replay algorithm as TR and GBM.)</dd>
+
+      <dt>Maximum drawdown</dt>
+      <dd>The largest peak-to-trough drop, as a %, before a new high is reached — "how far down from your best point you'd been". Computed on the cumulative time-weighted-return index, so deposits don't masquerade as gains. Shown only for the <strong>Wealth</strong> roboadvisor portfolio, which reports a daily TWR series; the Broker view (like GBM and TR) has no daily NAV history to compute it from.</dd>
 
       <dt>Quote tick</dt>
       <dd>Last-known bid/ask/mid for a security. Scalable exposes them per ISIN with timestamps + isOutdated flag. The realtime stream pushes new ticks during market hours.</dd>
