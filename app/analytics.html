@@ -619,12 +619,23 @@
     const info = document.getElementById("capital-range-info");
     if (info) info.textContent = `${filteredDates[0]} → ${filteredDates[filteredDates.length - 1]}`;
 
+    // Rebase a benchmark so it STARTS at the same height as the user's line
+    // at the left edge of the visible window (subtract the pre-window
+    // head-start) — otherwise an index that already ran up looks like it
+    // "starts higher" and the comparison is unfair. No-op in the "All" view.
+    const rebaseToStart = (series) => {
+      let i = 0;
+      while (i < series.length && (series[i] == null || values[i] == null)) i++;
+      if (i >= series.length) return series;
+      const offset = series[i] - values[i];
+      return series.map(v => v == null ? null : +(v - offset).toFixed(2));
+    };
     // Benchmark overlays — replay each, align by exact date (null = gap).
     const benchDatasets = [];
     for (const b of _capBenchmarks) {
       const m = _replayBenchmark(b.bench, dailyMap);
       if (!m) continue;
-      const aligned = filteredDates.map(d => m[d] ?? null);
+      const aligned = rebaseToStart(filteredDates.map(d => m[d] ?? null));
       if (!aligned.some(v => v != null)) continue;
       benchDatasets.push({
         label: `If you'd bought ${b.label} instead`,
