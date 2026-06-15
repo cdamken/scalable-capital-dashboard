@@ -145,6 +145,11 @@
     <div class="value" id="kpi-avg" style="color: var(--text);">—</div>
     <div class="sub">arithmetic mean</div>
   </div>
+  <div class="card" title="Forward 12-month dividend ÷ FIFO cost basis. Unlike market yield (÷ current price), this is the income you earn per euro you actually paid. Same metric as TR/GBM.">
+    <div class="label">Yield on cost</div>
+    <div class="value" id="kpi-yoc" style="color: var(--blue);">—</div>
+    <div class="sub" id="kpi-yoc-sub">forward 12m ÷ cost basis</div>
+  </div>
 </div>
 
 <div class="forecast" id="forecast-box" style="display: none;">
@@ -247,14 +252,29 @@
     const progress = await getJSON("/progress");
     setStaleness(progress && progress.last_update);
 
-    const tx = await getJSON("/DATA/transactions.json");
+    const [tx, inv] = await Promise.all([
+      getJSON("/DATA/transactions.json"),
+      getJSON("/DATA/inventory.json"),
+    ]);
     const dividends = (tx?.transactions || [])
       .filter(t => t.type === "CASH_TRANSACTION" && t.cashTransactionType === "DISTRIBUTION")
       .sort((a, b) => (b.lastEventDateTime || "").localeCompare(a.lastEventDateTime || ""));
-    render(dividends);
+    render(dividends, costBasisFromInventory(inv));
   }
 
-  function render(dividends) {
+  // FIFO cost basis = Σ fifoPrice × qty across all holdings. Used for the
+  // yield-on-cost KPI (same metric as the TR/GBM dashboards).
+  function costBasisFromInventory(inv) {
+    const grouped = ((inv?.portfolioGroups?.items) || []).flatMap(g => g.items || []);
+    const ungrouped = (inv?.ungroupedInventoryItems?.items) || [];
+    return [...grouped, ...ungrouped].reduce((s, sec) => {
+      const pos = sec.inventory?.position || {};
+      const qty = (pos.filled || 0) + (pos.pending || 0) + (pos.blocked || 0);
+      return s + (pos.fifoPrice != null ? pos.fifoPrice * qty : 0);
+    }, 0);
+  }
+
+  function render(dividends, costBasis) {
     // KPIs
     const total = dividends.reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const thisYear = new Date().getFullYear();
@@ -301,6 +321,19 @@
         ` Assumes payouts continue at the same rate — does NOT account for position changes, dividend cuts, or new holdings.`;
     } else {
       forecastBox.style.display = "none";
+    }
+
+    // Yield on cost = forward 12-month dividend ÷ FIFO cost basis. Uses the
+    // same forward figure shown in the forecast box above. Moved here from
+    // Analytics (dividend metrics live with dividends).
+    const yocEl = document.getElementById("kpi-yoc");
+    const yocSub = document.getElementById("kpi-yoc-sub");
+    if (costBasis > 0 && forecastTotal > 0) {
+      yocEl.textContent = (forecastTotal / costBasis * 100).toFixed(2) + "%";
+      yocSub.textContent = `${fmtMoney(forecastTotal)} fwd ÷ ${fmtMoney(costBasis)} cost`;
+    } else {
+      yocEl.textContent = "—";
+      yocSub.textContent = costBasis > 0 ? "no distributions yet" : "no cost basis";
     }
 
     // By-security table
