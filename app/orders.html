@@ -386,7 +386,7 @@
         <td>${typeBadge}</td>
         <td>${fmtQty(t.quantity)}</td>
         <td>${t.amount != null ? fmtMoney(t.amount, t.currency || "EUR") : "—"}</td>
-        <td><span class="badge ${statusClass}">${escapeHtml(t.status || "—")}</span></td>
+        <td><span class="badge ${escapeHtml(statusClass)}">${escapeHtml(t.status || "—")}</span></td>
       `;
       tbody.appendChild(tr);
     }

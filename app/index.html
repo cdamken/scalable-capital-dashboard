@@ -352,9 +352,9 @@
         const cancelled = (w.invested === false) || (w.funded === false);
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${w.name || "—"}</td>
-          <td>${w.portfolio_type || "—"}</td>
-          <td>${w.risk_category || "—"}</td>
+          <td>${escapeHtml(w.name || "—")}</td>
+          <td>${escapeHtml(w.portfolio_type || "—")}</td>
+          <td>${escapeHtml(w.risk_category || "—")}</td>
           <td>${w.funded ? "✓" : "—"}</td>
           <td style="color: ${cancelled ? 'var(--muted)' : 'var(--green)'};">
             ${cancelled ? "cancelled" : "active"}</td>
@@ -429,9 +429,9 @@
         const top1Pct = sorted[0].value / securitiesValue;
         const top5Pct = sorted.slice(0, 5).reduce((s, h) => s + h.value, 0) / securitiesValue;
         if (top1Pct >= 0.50) {
-          warningsDiv.innerHTML += `<div class="warning red">⚠️ <strong>${sorted[0].name}</strong> is ${(top1Pct*100).toFixed(1)}% of your Broker holdings — heavy single-name concentration.</div>`;
+          warningsDiv.innerHTML += `<div class="warning red">⚠️ <strong>${escapeHtml(sorted[0].name)}</strong> is ${(top1Pct*100).toFixed(1)}% of your Broker holdings — heavy single-name concentration.</div>`;
         } else if (top1Pct >= 0.30) {
-          warningsDiv.innerHTML += `<div class="warning">⚠️ <strong>${sorted[0].name}</strong> is ${(top1Pct*100).toFixed(1)}% of your Broker holdings.</div>`;
+          warningsDiv.innerHTML += `<div class="warning">⚠️ <strong>${escapeHtml(sorted[0].name)}</strong> is ${(top1Pct*100).toFixed(1)}% of your Broker holdings.</div>`;
         }
         if (top5Pct >= 0.85) {
           warningsDiv.innerHTML += `<div class="warning red">⚠️ Top 5 holdings are ${(top5Pct*100).toFixed(1)}% of your Broker portfolio — very concentrated.</div>`;
@@ -521,7 +521,7 @@
       <dt>Partner type</dt><dd>${escapeHtml(h.partnerType || "—")}</dd>
       <dt>Pending orders</dt><dd>${h.numberOfPendingOrders || 0}</dd>
       <dt>Performance (TWR)</dt><dd style="font-size: 12px;">
-        ${pricePerf.map(p => `${p.timeframe}: ${fmtPct(p.performance)} (${fmtMoney(p.simpleAbsoluteReturn, h.currency)})`).join("<br>") || "—"}
+        ${pricePerf.map(p => `${escapeHtml(p.timeframe)}: ${fmtPct(p.performance)} (${fmtMoney(p.simpleAbsoluteReturn, h.currency)})`).join("<br>") || "—"}
       </dd>
     `;
     document.getElementById("position-modal").classList.add("active");
