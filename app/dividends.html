@@ -428,10 +428,10 @@
       const x = M.left + (innerW / years.length) * i + gap / 2;
       const y = M.top + innerH - h;
       svg.innerHTML += `<rect class="bar" x="${x}" y="${y}" width="${barW}" height="${h}" rx="4">
-        <title>${year}: ${fmtMoney(v)}</title>
+        <title>${escapeHtml(year)}: ${fmtMoney(v)}</title>
       </rect>`;
       svg.innerHTML += `<text class="bar-label" x="${x + barW / 2}" y="${y - 6}" text-anchor="middle">${fmtMoney(v)}</text>`;
-      svg.innerHTML += `<text x="${x + barW / 2}" y="${M.top + innerH + 18}" text-anchor="middle">${year}</text>`;
+      svg.innerHTML += `<text x="${x + barW / 2}" y="${M.top + innerH + 18}" text-anchor="middle">${escapeHtml(year)}</text>`;
     });
   }
 
