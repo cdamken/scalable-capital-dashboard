@@ -390,7 +390,11 @@
         const tick = sec.quoteTick || {};
         const price = tick.midPrice;
         const value = price != null && qty != null ? price * qty : null;
-        const perf = (tick.performancesByTimeframe || []).find(p => p.timeframe === "ONE_DAY");
+        // "P&L %" column = return since purchase. The API renamed this
+        // timeframe: it used to emit ONE_DAY, now it's SINCE_BUY (the daily
+        // bucket is INTRADAY). Reading the stale ONE_DAY key returned null for
+        // every row, so the column showed "—" across the board.
+        const perf = (tick.performancesByTimeframe || []).find(p => p.timeframe === "SINCE_BUY");
         const pnl = perf ? perf.performance : null;
         return {
           name: sec.name || "",
